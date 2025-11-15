@@ -148,33 +148,35 @@
             }, []);
 
             return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-3 sm:p-6">
                     {/* Header */}
-                    <div className="max-w-7xl mx-auto mb-8">
-                        <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-blue-500 p-3 rounded-xl">
-                                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <div className="max-w-7xl mx-auto mb-6 sm:mb-8">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-2">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="bg-blue-500 p-2 sm:p-3 rounded-xl flex-shrink-0">
+                                    <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm5-18v4h3V3h-3z"/>
                                     </svg>
                                 </div>
-                                <div>
-                                    <h1 className="text-3xl font-bold">Smart Structure Trading Bot</h1>
-                                    <p className="text-slate-400">Automated CHOCH & BOS Trading System</p>
+                                <div className="min-w-0 flex-1">
+                                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold truncate">Smart Structure Trading Bot</h1>
+                                    <p className="text-slate-400 text-sm sm:text-base truncate">Automated CHOCH & BOS Trading System</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${status.running ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                    <div className={`w-3 h-3 rounded-full ${status.running ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
-                                    <span className="font-semibold">{status.running ? 'ACTIVE' : 'INACTIVE'}</span>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                                <div className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm sm:text-base ${status.running ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${status.running ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                                    <span className="font-semibold whitespace-nowrap">{status.running ? 'ACTIVE' : 'INACTIVE'}</span>
                                 </div>
                                 <button
                                     onClick={toggleBot}
-                                    className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ${
+                                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all text-sm sm:text-base whitespace-nowrap ${
                                         status.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
                                     }`}
                                 >
-                                    {status.running ? '⏸️ Stop Bot' : '▶️ Start Bot'}
+                                    <span className="text-base">{status.running ? '⏸️' : '▶️'}</span>
+                                    <span className="hidden sm:inline">{status.running ? 'Stop Bot' : 'Start Bot'}</span>
+                                    <span className="sm:hidden">{status.running ? 'Stop' : 'Start'}</span>
                                 </button>
                             </div>
                         </div>
@@ -182,52 +184,52 @@
 
                     <div className="max-w-7xl mx-auto space-y-6">
                         {/* Overview Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-3 sm:p-6">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-slate-400 text-sm">Account Balance</span>
-                                    <span className="text-blue-400">💰</span>
+                                    <span className="text-slate-400 text-xs sm:text-sm">Account Balance</span>
+                                    <span className="text-blue-400 text-sm sm:text-base">💰</span>
                                 </div>
-                                <div className="text-3xl font-bold">${status.account_balance?.toFixed(2) || '0.00'}</div>
+                                <div className="text-lg sm:text-2xl lg:text-3xl font-bold">${status.account_balance?.toFixed(2) || '0.00'}</div>
                                 <div className="text-xs text-slate-500 mt-1">Practice Account</div>
                             </div>
 
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-3 sm:p-6">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-slate-400 text-sm">Today's P&L</span>
-                                    <span className={status.today_pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                    <span className="text-slate-400 text-xs sm:text-sm">Today's P&L</span>
+                                    <span className={`text-sm sm:text-base ${status.today_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                         {status.today_pnl >= 0 ? '📈' : '📉'}
                                     </span>
                                 </div>
-                                <div className={`text-3xl font-bold ${status.today_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                <div className={`text-lg sm:text-2xl lg:text-3xl font-bold ${status.today_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {status.today_pnl >= 0 ? '+' : ''}${status.today_pnl?.toFixed(2) || '0.00'}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">{((status.today_pnl / status.account_balance) * 100).toFixed(2)}% of balance</div>
                             </div>
 
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-3 sm:p-6">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-slate-400 text-sm">Open Trades</span>
-                                    <span className="text-purple-400">🎯</span>
+                                    <span className="text-slate-400 text-xs sm:text-sm">Open Trades</span>
+                                    <span className="text-purple-400 text-sm sm:text-base">🎯</span>
                                 </div>
-                                <div className="text-3xl font-bold">{status.open_trades || 0}</div>
+                                <div className="text-lg sm:text-2xl lg:text-3xl font-bold">{status.open_trades || 0}</div>
                                 <div className="text-xs text-slate-500 mt-1">Active positions</div>
                             </div>
 
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-3 sm:p-6">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-slate-400 text-sm">Trades Remaining</span>
-                                    <span className="text-orange-400">⏰</span>
+                                    <span className="text-slate-400 text-xs sm:text-sm">Trades Remaining</span>
+                                    <span className="text-orange-400 text-sm sm:text-base">⏰</span>
                                 </div>
-                                <div className="text-3xl font-bold">{status.trades_remaining || 0}/{dailyTradeLimit}</div>
+                                <div className="text-lg sm:text-2xl lg:text-3xl font-bold">{status.trades_remaining || 0}/{dailyTradeLimit}</div>
                                 <div className="text-xs text-slate-500 mt-1">Concurrent limit</div>
                             </div>
                         </div>
 
                         {/* Main Content Grid */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                             {/* Active Trades Panel */}
-                            <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                            <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-bold flex items-center gap-2">
                                         📊 Active Trades
@@ -299,7 +301,7 @@
                             </div>
 
                             {/* Settings Panel */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-bold flex items-center gap-2">
                                         ⚙️ Bot Settings
@@ -316,7 +318,7 @@
                                     {/* Risk Percentage */}
                                     <div>
                                         <label className="block text-sm font-semibold mb-3 text-slate-300">Risk Per Trade</label>
-                                        <div className="grid grid-cols-4 gap-2">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                             {[1, 2, 3, 4].map(value => (
                                                 <button
                                                     key={value}
@@ -342,7 +344,7 @@
                                     {/* Balance Method */}
                                     <div>
                                         <label className="block text-sm font-semibold mb-3 text-slate-300">Balance Calculation</label>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <button
                                                 onClick={() => setBalanceMethod('initial')}
                                                 className={`py-2 px-3 rounded-lg font-semibold text-sm transition-all ${
@@ -434,7 +436,7 @@
                                     {showSettings && (
                                         <div>
                                             <label className="block text-sm font-semibold mb-3 text-slate-300">Trading Instruments</label>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 {['NAS100_USD', 'EU50_EUR', 'JP225_USD', 'USD_CAD', 'USD_JPY'].map(instrument => (
                                                     <button
                                                         key={instrument}
@@ -455,7 +457,7 @@
                                     {/* Quick Risk Presets */}
                                     <div>
                                         <label className="block text-sm font-semibold mb-3 text-slate-300">Quick Risk Presets</label>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <button
                                                 onClick={() => updateRiskSettings(1, 'current')}
                                                 className="py-2 px-3 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all"
@@ -548,7 +550,7 @@
                         </div>
 
                         {/* Trade History */}
-                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     📊 Trade History
@@ -563,8 +565,8 @@
                                     <p>No trade history yet</p>
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
+                                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                                    <table className="w-full min-w-[600px]">
                                         <thead>
                                             <tr className="text-left text-sm text-slate-400 border-b border-slate-700">
                                                 <th className="pb-3">Instrument</th>
@@ -615,7 +617,7 @@
                         </div>
 
                         {/* Instruments Monitoring */}
-                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     🔔 Instruments Monitoring
@@ -625,7 +627,7 @@
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                                 {['NAS100_USD', 'EU50_EUR', 'JP225_USD', 'USD_CAD', 'USD_JPY'].map(instrument => {
                                     const isActive = instruments.includes(instrument);
                                     return (
@@ -654,7 +656,7 @@
                             </div>
                             
                             {/* Market Status */}
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                                 <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
                                     <div className="text-sm font-semibold mb-2 text-slate-300">📈 Market Session</div>
                                     <div className="text-lg font-bold text-green-400">London Open</div>
@@ -698,12 +700,12 @@
                         )}
 
                         {/* System Status & Footer */}
-                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
+                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 sm:p-6">
                             <h2 className="text-xl font-bold flex items-center gap-2 mb-6">
                                 🖥️ System Status
                             </h2>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                                 <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 text-center">
                                     <div className="text-2xl mb-2">🔗</div>
                                     <div className="text-sm font-semibold text-green-400">OANDA Connected</div>
