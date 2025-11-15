@@ -28,7 +28,7 @@
             const [balanceMethod, setBalanceMethod] = useState('current');
             const [newsFilter, setNewsFilter] = useState(false);
             const [dailyTradeLimit, setDailyTradeLimit] = useState(3);
-            const [bosDistance, setBosDistance] = useState(50);
+            const [bosDistance, setBosDistance] = useState(2.0);
             const [maxDailyLoss, setMaxDailyLoss] = useState(5);
             const [instruments, setInstruments] = useState(['NAS100_USD', 'EU50_EUR', 'JP225_USD', 'USD_CAD', 'USD_JPY']);
             const [showSettings, setShowSettings] = useState(false);
@@ -110,10 +110,10 @@
 
             const updateBosDistance = async (value) => {
                 setBosDistance(value);
-                await fetch('/settings/bos-distance', {
+                await fetch('/settings/atr-multiplier', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({threshold_pips: parseFloat(value)})
+                    body: JSON.stringify({atr_multiplier: parseFloat(value)})
                 });
             };
 
@@ -424,17 +424,32 @@
                                         />
                                     </div>
 
-                                    {/* BOS Distance */}
+                                    {/* ATR Multiplier */}
                                     <div>
-                                        <label className="block text-sm font-semibold mb-3 text-slate-300">BOS Distance Threshold (pips)</label>
-                                        <input
-                                            type="number"
-                                            value={bosDistance}
-                                            onChange={(e) => updateBosDistance(e.target.value)}
-                                            min="10"
-                                            max="200"
-                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        />
+                                        <label className="block text-sm font-semibold mb-3 text-slate-300">BOS Distance Threshold (ATR Multiplier)</label>
+                                        <div className="grid grid-cols-3 gap-2 mb-2">
+                                            {[1.5, 2.0, 2.5].map(value => (
+                                                <button
+                                                    key={value}
+                                                    onClick={() => setBosDistance(value)}
+                                                    className={`py-2 rounded-lg font-semibold text-sm transition-all ${
+                                                        bosDistance === value
+                                                            ? 'bg-blue-500 text-white'
+                                                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                                    }`}
+                                                >
+                                                    {value}x
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                            {bosDistance === 1.5 && '1.5x ATR - Strict (only very close setups)'}
+                                            {bosDistance === 2.0 && '2.0x ATR - Balanced (recommended default)'}
+                                            {bosDistance === 2.5 && '2.5x ATR - Lenient (more opportunities)'}
+                                        </div>
+                                        <div className="text-xs text-blue-400 mt-1">
+                                            ✨ Auto-adapts to each instrument's volatility
+                                        </div>
                                     </div>
 
                                     {/* Max Daily Loss */}
