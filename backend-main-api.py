@@ -106,8 +106,33 @@ class TradeModify(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
     db.initialize()
     print("✅ Database initialized")
+    
+    # Auto-configure bot if environment variables are present
+    api_key = os.getenv('OANDA_API_KEY')
+    account_id = os.getenv('OANDA_ACCOUNT_ID')
+    
+    if api_key and account_id:
+        try:
+            config = BotConfig(
+                api_key=api_key,
+                account_id=account_id,
+                environment=os.getenv('OANDA_ENVIRONMENT', 'practice'),
+                risk_percentage=float(os.getenv('RISK_PERCENTAGE', 2.0)),
+                balance_method=os.getenv('BALANCE_METHOD', 'current'),
+                news_filter=os.getenv('NEWS_FILTER', 'False').lower() == 'true',
+                daily_trade_limit=int(os.getenv('DAILY_TRADE_LIMIT', 3)),
+                instruments=os.getenv('INSTRUMENTS', 'NAS100_USD,EU50_EUR,JP225_USD,USD_CAD,USD_JPY').split(',')
+            )
+            await configure_bot_internal(config)
+            print("🚀 Bot auto-configured from environment variables")
+        except Exception as e:
+            print(f"⚠️ Auto-configuration failed: {str(e)}")
 
 @app.get("/")
 async def root():
@@ -121,79 +146,80 @@ async def dashboard():
 async def full_dashboard():
     return FileResponse("complete_dashboard.html")
 
-@app.post("/bot/configure")
-async def configure_bot(config: BotConfig):
-    """Configure bot with OANDA credentials and settings"""
+async def configure_bot_internal(config: BotConfig):
+    """Internal bot configuration function"""
     global oanda_client, risk_manager, structure_detector, order_executor
     global data_module, news_filter, signal_generator, trade_manager
     
-    try:
-        # Initialize OANDA client
-        oanda_client = OandaClient(
-            api_key=config.api_key,
-            account_id=config.account_id,
-            environment=config.environment
-        )
-        
-        # Test connection
-        account_info = await oanda_client.get_account_info()
-        
-        # Initialize other modules
-        risk_manager = RiskManager(
-            risk_percentage=config.risk_percentage,
-            balance_method=config.balance_method,
-            initial_balance=float(account_info['balance'])
-        )
-        
-        structure_detector = StructureDetector(
-            oanda_client=oanda_client,
-            instruments=config.instruments
-        )
-        
-        # Initialize data module
-        data_module = DataModule(oanda_client, db)
-        
-        # Initialize news filter
-        news_filter = NewsFilter(enabled=config.news_filter)
-        
-
-        
-        # Initialize signal generator
-        signal_generator = SignalGenerator(
-            structure_detector=structure_detector,
-            data_module=data_module,
-            news_filter=news_filter,
-            db=db
-        )
-        
-        order_executor = OrderExecutor(
-            oanda_client=oanda_client,
-            risk_manager=risk_manager,
-            db=db
-        )
-        
-        # Initialize trade manager
-        trade_manager = TradeManager(
-            oanda_client=oanda_client,
-            db=db
-        )
-        
-        # Initialize previous day levels
-        await data_module.initialize_daily_levels()
-        
-        # Save config to database
-        db.save_bot_config(config.dict())
-        
-        # Register additional API endpoints
-        api_endpoints_mod.add_new_endpoints(app, news_filter, signal_generator, trade_manager)
-        
-        return {
-            "success": True,
-            "message": "Bot configured successfully",
-            "account_balance": account_info['balance'],
-            "account_currency": account_info['currency']
-        }
+    # Initialize OANDA client
+    oanda_client = OandaClient(
+        api_key=config.api_key,
+        account_id=config.account_id,
+        environment=config.environment
+    )
     
+    # Test connection
+    account_info = await oanda_client.get_account_info()
+    
+    # Initialize other modules
+    risk_manager = RiskManager(
+        risk_percentage=config.risk_percentage,
+        balance_method=config.balance_method,
+        initial_balance=float(account_info['balance'])
+    )
+    
+    structure_detector = StructureDetector(
+        oanda_client=oanda_client,
+        instruments=config.instruments
+    )
+    
+    # Initialize data module
+    data_module = DataModule(oanda_client, db)
+    
+    # Initialize news filter
+    news_filter = NewsFilter(enabled=config.news_filter)
+    
+    # Initialize signal generator
+    signal_generator = SignalGenerator(
+        structure_detector=structure_detector,
+        data_module=data_module,
+        news_filter=news_filter,
+        db=db
+    )
+    
+    order_executor = OrderExecutor(
+        oanda_client=oanda_client,
+        risk_manager=risk_manager,
+        db=db
+    )
+    
+    # Initialize trade manager
+    trade_manager = TradeManager(
+        oanda_client=oanda_client,
+        db=db
+    )
+    
+    # Initialize previous day levels
+    await data_module.initialize_daily_levels()
+    
+    # Save config to database
+    db.save_bot_config(config.dict())
+    
+    # Register additional API endpoints
+    api_endpoints_mod.add_new_endpoints(app, news_filter, signal_generator, trade_manager)
+    
+    return {
+        "success": True,
+        "message": "Bot configured successfully",
+        "account_balance": account_info['balance'],
+        "account_currency": account_info['currency']
+    }
+
+@app.post("/bot/configure")
+async def configure_bot(config: BotConfig):
+    """Configure bot with OANDA credentials and settings"""
+    try:
+        return await configure_bot_internal(config)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Configuration failed: {str(e)}")
 
