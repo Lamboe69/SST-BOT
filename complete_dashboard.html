@@ -32,6 +32,30 @@
             const [maxDailyLoss, setMaxDailyLoss] = useState(5);
             const [instruments, setInstruments] = useState(['NAS100_USD', 'EU50_EUR', 'JP225_USD', 'USD_CAD', 'USD_JPY']);
             const [showSettings, setShowSettings] = useState(false);
+            
+            // Market status detection
+            const getMarketStatus = () => {
+                const now = new Date();
+                const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
+                const hour = now.getUTCHours();
+                
+                // Market closed on weekends (Friday 21:00 UTC to Sunday 21:00 UTC)
+                if (day === 0 || day === 6 || (day === 5 && hour >= 21)) {
+                    return { status: 'CLOSED', message: 'Market Closed', icon: '🚫' };
+                }
+                
+                return { status: 'OPEN', message: 'Market Open', icon: '📈' };
+            };
+            
+            const [marketStatus, setMarketStatus] = useState(getMarketStatus());
+            
+            // Update market status every minute
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setMarketStatus(getMarketStatus());
+                }, 60000);
+                return () => clearInterval(interval);
+            }, []);
 
             const fetchData = async () => {
                 try {
@@ -658,9 +682,13 @@
                             {/* Market Status */}
                             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                                 <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
-                                    <div className="text-sm font-semibold mb-2 text-slate-300">📈 Market Session</div>
-                                    <div className="text-lg font-bold text-green-400">London Open</div>
-                                    <div className="text-xs text-slate-500">High volatility expected</div>
+                                    <div className="text-sm font-semibold mb-2 text-slate-300">{marketStatus.icon} Market Session</div>
+                                    <div className={`text-lg font-bold ${marketStatus.status === 'OPEN' ? 'text-green-400' : 'text-red-400'}`}>
+                                        {marketStatus.message}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                        {marketStatus.status === 'OPEN' ? 'Trading active' : 'Bot continues monitoring'}
+                                    </div>
                                 </div>
                                 <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
                                     <div className="text-sm font-semibold mb-2 text-slate-300">🎯 Setup Quality</div>
