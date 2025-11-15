@@ -119,18 +119,21 @@ async def startup_event():
     
     if api_key and account_id:
         try:
+            # Load existing settings from database or use defaults
+            saved_config = db.get_bot_config()
+            
             config = BotConfig(
                 api_key=api_key,
                 account_id=account_id,
                 environment=os.getenv('OANDA_ENVIRONMENT', 'practice'),
-                risk_percentage=float(os.getenv('RISK_PERCENTAGE', 2.0)),
-                balance_method=os.getenv('BALANCE_METHOD', 'current'),
-                news_filter=os.getenv('NEWS_FILTER', 'False').lower() == 'true',
-                daily_trade_limit=int(os.getenv('DAILY_TRADE_LIMIT', 3)),
-                instruments=os.getenv('INSTRUMENTS', 'NAS100_USD,EU50_EUR,JP225_USD,USD_CAD,USD_JPY').split(',')
+                risk_percentage=saved_config.get('risk_percentage', float(os.getenv('RISK_PERCENTAGE', 2.0))),
+                balance_method=saved_config.get('balance_method', os.getenv('BALANCE_METHOD', 'current')),
+                news_filter=saved_config.get('news_filter', os.getenv('NEWS_FILTER', 'False').lower() == 'true'),
+                daily_trade_limit=saved_config.get('daily_trade_limit', int(os.getenv('DAILY_TRADE_LIMIT', 3))),
+                instruments=saved_config.get('instruments', os.getenv('INSTRUMENTS', 'NAS100_USD,EU50_EUR,JP225_USD,USD_CAD,USD_JPY').split(','))
             )
             await configure_bot_internal(config)
-            print("🚀 Bot auto-configured from environment variables")
+            print("🚀 Bot auto-configured with saved settings")
         except Exception as e:
             print(f"⚠️ Auto-configuration failed: {str(e)}")
 
@@ -280,8 +283,8 @@ async def get_bot_status():
             account_balance=float(account_info['balance']),
             today_pnl=db.get_today_pnl(),
             open_trades=len(open_trades),
-            trades_remaining=config['daily_trade_limit'] - total_active_trades,
-            instruments_monitoring=config['instruments']
+            trades_remaining=max(0, config.get('daily_trade_limit', 3) - total_active_trades),
+            instruments_monitoring=config.get('instruments', [])
         )
     
     except Exception as e:
@@ -353,6 +356,65 @@ async def get_performance_metrics():
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get metrics: {str(e)}")
+
+@app.get("/settings")
+async def get_settings():
+    """Get current bot settings"""
+    try:
+        settings = db.get_bot_config()
+        return {"success": True, "settings": settings}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get settings: {str(e)}")
+
+@app.post("/settings/update")
+async def update_settings(settings: dict):
+    """Update bot settings and sync across devices"""
+    try:
+        # Update each setting in database
+        for key, value in settings.items():
+            db.update_setting(key, value)
+        
+        # Update global instances if they exist
+        if risk_manager and 'risk_percentage' in settings:
+            risk_manager.risk_percentage = settings['risk_percentage']
+        if risk_manager and 'balance_method' in settings:
+            risk_manager.balance_method = settings['balance_method']
+        if news_filter and 'news_filter' in settings:
+            news_filter.enabled = settings['news_filter']
+        if structure_detector and 'atr_multiplier' in settings:
+            structure_detector.atr_multiplier = settings['atr_multiplier']
+            
+        return {"success": True, "message": "Settings updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+@app.post("/settings/news-filter")
+async def update_news_filter(data: dict):
+    """Update news filter setting"""
+    try:
+        enabled = data.get('enabled', False)
+        db.update_setting('news_filter', enabled)
+        
+        if news_filter:
+            news_filter.enabled = enabled
+            
+        return {"success": True, "message": f"News filter {'enabled' if enabled else 'disabled'}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update news filter: {str(e)}")
+
+@app.post("/settings/atr-multiplier")
+async def update_atr_multiplier(data: dict):
+    """Update ATR multiplier setting"""
+    try:
+        multiplier = data.get('atr_multiplier', 2.0)
+        db.update_setting('atr_multiplier', multiplier)
+        
+        if structure_detector:
+            structure_detector.atr_multiplier = multiplier
+            
+        return {"success": True, "message": f"ATR multiplier updated to {multiplier}x"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update ATR multiplier: {str(e)}")
 
 # Background task - Main trading loop
 async def run_trading_bot():

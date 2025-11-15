@@ -93,6 +93,24 @@ class Database:
             )
         """)
         
+        # Initialize default settings if not exist
+        cursor.execute("SELECT COUNT(*) FROM bot_settings")
+        if cursor.fetchone()[0] == 0:
+            default_settings = {
+                'risk_percentage': 2,
+                'balance_method': 'current',
+                'news_filter': False,
+                'daily_trade_limit': 3,
+                'atr_multiplier': 2.0,
+                'max_daily_loss': 5,
+                'instruments': ['NAS100_USD', 'EU50_EUR', 'JP225_USD', 'USD_CAD', 'USD_JPY']
+            }
+            for key, value in default_settings.items():
+                cursor.execute("""
+                    INSERT INTO bot_settings (setting_name, setting_value)
+                    VALUES (?, ?)
+                """, (key, json.dumps(value)))
+        
         # Daily stats table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS daily_stats (
@@ -301,6 +319,22 @@ class Database:
             """, (key, json.dumps(value)))
         
         self.conn.commit()
+    
+    def update_setting(self, setting_name: str, setting_value):
+        """Update a single setting"""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO bot_settings (setting_name, setting_value, last_updated)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        """, (setting_name, json.dumps(setting_value)))
+        self.conn.commit()
+    
+    def get_setting(self, setting_name: str):
+        """Get a single setting value"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT setting_value FROM bot_settings WHERE setting_name = ?", (setting_name,))
+        row = cursor.fetchone()
+        return json.loads(row['setting_value']) if row else None
     
     def get_bot_config(self) -> Dict:
         """Get bot configuration"""

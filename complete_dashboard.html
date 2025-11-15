@@ -431,7 +431,11 @@
                                             {[1.5, 2.0, 2.5].map(value => (
                                                 <button
                                                     key={value}
-                                                    onClick={() => setBosDistance(value)}
+                                                    onClick={() => {
+                                                        setBosDistance(value);
+                                                        updateBosDistance(value);
+                                                        setTimeout(syncSettings, 100);
+                                                    }}
                                                     className={`py-2 rounded-lg font-semibold text-sm transition-all ${
                                                         bosDistance === value
                                                             ? 'bg-blue-500 text-white'
