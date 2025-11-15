@@ -24,6 +24,12 @@ class StructureDetector:
         
         # Track last analysis time
         self.last_analysis = {}
+        
+        # Store ATR values for each instrument
+        self.atr_values = {}
+        
+        # ATR multiplier for distance validation (configurable)
+        self.atr_multiplier = 2.0
     
     def analyze(self, instrument: str, candles: List[Dict]) -> List[Dict]:
         """
@@ -50,6 +56,9 @@ class StructureDetector:
         pdl = levels.get('low')
         pdh_broken = levels.get('high_broken', False)
         pdl_broken = levels.get('low_broken', False)
+        
+        # Calculate ATR for distance validation
+        self._calculate_atr(instrument, candles)
         
         # Detect swing highs and lows
         swing_highs, swing_lows = self._detect_swings(candles)
@@ -267,12 +276,12 @@ class StructureDetector:
         if not broken_pdh:
             return None
         
-        # Check if BOS is not too far from PDH (distance threshold)
+        # Check if BOS is not too far from PDH using ATR-based distance
         current_high = max([c['high'] for c in recent_candles])
-        distance_from_pdh = current_high - pdh
         
-        # If BOS is more than 1% away from PDH, don't take the trade
-        if distance_from_pdh > (pdh * 0.01):
+        if self._is_bos_too_far(instrument, current_high, pdh):
+            distance_ratio = self._calculate_distance_ratio(instrument, current_high, pdh)
+            print(f"[{instrument}] BOS rejected - too far from PDH. Distance: {distance_ratio:.2f}x ATR (max: {self.atr_multiplier}x)")
             return None
         
         # Find recent swing high after breaking PDH
@@ -288,6 +297,9 @@ class StructureDetector:
             # Stop loss below the broken PDH
             stop_loss = pdh * 0.999
             
+            distance_ratio = self._calculate_distance_ratio(instrument, current_price, pdh)
+            print(f"[{instrument}] BOS BUY signal accepted. Distance: {distance_ratio:.2f}x ATR from PDH")
+            
             return {
                 'instrument': instrument,
                 'setup_type': 'BOS',
@@ -296,6 +308,7 @@ class StructureDetector:
                 'stop_loss': stop_loss,
                 'reference_level': pdh,
                 'swing_break_level': latest_swing_high['price'],
+                'distance_atr_ratio': distance_ratio,
                 'timestamp': datetime.now()
             }
         
@@ -315,11 +328,12 @@ class StructureDetector:
         if not broken_pdl:
             return None
         
-        # Check if BOS is not too far from PDL
+        # Check if BOS is not too far from PDL using ATR-based distance
         current_low = min([c['low'] for c in recent_candles])
-        distance_from_pdl = pdl - current_low
         
-        if distance_from_pdl > (pdl * 0.01):
+        if self._is_bos_too_far(instrument, current_low, pdl):
+            distance_ratio = self._calculate_distance_ratio(instrument, current_low, pdl)
+            print(f"[{instrument}] BOS rejected - too far from PDL. Distance: {distance_ratio:.2f}x ATR (max: {self.atr_multiplier}x)")
             return None
         
         # Find recent swing low after breaking PDL
@@ -335,6 +349,9 @@ class StructureDetector:
             # Stop loss above the broken PDL
             stop_loss = pdl * 1.001
             
+            distance_ratio = self._calculate_distance_ratio(instrument, current_price, pdl)
+            print(f"[{instrument}] BOS SELL signal accepted. Distance: {distance_ratio:.2f}x ATR from PDL")
+            
             return {
                 'instrument': instrument,
                 'setup_type': 'BOS',
@@ -343,6 +360,7 @@ class StructureDetector:
                 'stop_loss': stop_loss,
                 'reference_level': pdl,
                 'swing_break_level': latest_swing_low['price'],
+                'distance_atr_ratio': distance_ratio,
                 'timestamp': datetime.now()
             }
         
@@ -358,6 +376,94 @@ class StructureDetector:
         # Similar logic to _detect_choch_at_high but using the flipped PDL
         return self._detect_choch_at_high(candles, pdl, swing_lows, instrument)
     
+    def _calculate_atr(self, instrument: str, candles: List[Dict], period: int = 14):
+        """
+        Calculate Average True Range for the instrument
+        
+        Args:
+            instrument: Trading instrument
+            candles: Price data
+            period: ATR calculation period (default 14)
+        """
+        if len(candles) < period + 1:
+            return
+        
+        true_ranges = []
+        
+        for i in range(1, len(candles)):
+            high = candles[i]['high']
+            low = candles[i]['low']
+            prev_close = candles[i-1]['close']
+            
+            # True Range = max(high-low, |high-prev_close|, |low-prev_close|)
+            tr1 = high - low
+            tr2 = abs(high - prev_close)
+            tr3 = abs(low - prev_close)
+            
+            true_range = max(tr1, tr2, tr3)
+            true_ranges.append(true_range)
+        
+        # Calculate ATR as simple moving average of True Ranges
+        if len(true_ranges) >= period:
+            atr = sum(true_ranges[-period:]) / period
+            self.atr_values[instrument] = atr
+            print(f"[{instrument}] ATR updated: {atr:.5f}")
+    
+    def _is_bos_too_far(self, instrument: str, bos_level: float, reference_level: float) -> bool:
+        """
+        Check if BOS formation is too far from reference level using ATR
+        
+        Args:
+            instrument: Trading instrument
+            bos_level: Current BOS formation level
+            reference_level: Reference level (PDH/PDL)
+        
+        Returns:
+            True if too far, False if acceptable
+        """
+        atr = self.atr_values.get(instrument)
+        if not atr:
+            print(f"[{instrument}] No ATR available, using fallback distance check")
+            return False  # Allow trade if no ATR data
+        
+        distance = abs(bos_level - reference_level)
+        max_distance = atr * self.atr_multiplier
+        
+        return distance > max_distance
+    
+    def _calculate_distance_ratio(self, instrument: str, level1: float, level2: float) -> float:
+        """
+        Calculate distance between two levels in ATR units
+        
+        Args:
+            instrument: Trading instrument
+            level1: First price level
+            level2: Second price level
+        
+        Returns:
+            Distance in ATR units (e.g., 1.5 means 1.5x ATR)
+        """
+        atr = self.atr_values.get(instrument)
+        if not atr:
+            return 0.0
+        
+        distance = abs(level1 - level2)
+        return distance / atr
+    
     def get_previous_day_levels(self, instrument: str) -> Dict:
         """Get stored previous day levels for an instrument"""
         return self.previous_day_levels.get(instrument, {})
+    
+    def get_atr_info(self, instrument: str) -> Dict:
+        """
+        Get ATR information for an instrument
+        
+        Returns:
+            Dictionary with ATR value and threshold distance
+        """
+        atr = self.atr_values.get(instrument, 0)
+        return {
+            'atr': atr,
+            'max_distance': atr * self.atr_multiplier,
+            'multiplier': self.atr_multiplier
+        }
