@@ -1,0 +1,559 @@
+﻿TRADING BOT DESIGN DOCUMENT
+1. EXECUTIVE SUMMARY
+Bot Name: Smart Structure Trading Bot (SST Bot)
+Trading Style: Day Trading - Structure-based entries using previous day highs/lows
+Timeframe: 3-minute charts
+Markets: Forex (USDCAD, USDJPY) and Indices (NAS100, EU50, JP225)
+Trading Hours: 24/5 (Monday to Friday, broker time)
+Risk per Trade: Configurable (1%, 2%, 3%, or 4% of initial or current balance)
+Risk-Reward Ratio: 1:4 fixed
+Maximum Trades per Day: 3 trades across all instruments
+
+
+2. TRADING STRATEGY OVERVIEW
+The bot identifies two types of setups based on price structure:
+1. CHOCH (Change of Character) - Reversal setups at respected levels
+2. BOS (Break of Structure) - Continuation setups after level breaks
+The strategy monitors previous day's absolute high and low levels, and executes trades when specific price patterns form.
+
+
+3. ENTRY LOGIC
+3.1 Marking Previous Day Levels
+Daily Reset Time: Midnight (broker time)
+Levels to Mark:
+* Previous Day High (PDH): The absolute highest price point reached during the previous trading day
+* Previous Day Low (PDL): The absolute lowest price point reached during the previous trading day
+Level Management:
+* Levels remain active until broken or until a new setup forms
+* Once a level is broken and flips polarity, treat it as the opposite type (PDH becomes support, PDL becomes resistance)
+
+
+3.2 CHOCH Setup (Reversal) - At Previous Day High
+Scenario: Price returns to PDH and the level is RESPECTED (not broken)
+Entry Conditions:
+1. Price touches or approaches the PDH
+2. Price forms a rejection (creates a swing high at or near PDH)
+3. Price makes a lower high (fails to break above PDH)
+4. Price breaks BELOW the previous swing low (green line) formed after the rejection
+5. ENTRY: SELL when price closes below the green line (previous swing low)
+Stop Loss Placement:
+* Place SL slightly above the swing high that rejected from PDH (the highest point of the rejection candle/structure)
+Take Profit Placement:
+* TP = 4 × Stop Loss distance, measured from entry point downwards
+Post-Trade:
+* Keep monitoring the PDH level for future setups since it was respected
+
+
+3.3 CHOCH Setup (Reversal) - At Previous Day Low
+Scenario: Price returns to PDL and the level is RESPECTED (not broken)
+Entry Conditions:
+1. Price touches or approaches the PDL
+2. Price forms a bounce (creates a swing low at or near PDL)
+3. Price makes a higher low (fails to break below PDL)
+4. Price breaks ABOVE the previous swing high (green line) formed after the bounce
+5. ENTRY: BUY when price closes above the green line (previous swing high)
+Stop Loss Placement:
+* Place SL slightly below the swing low that bounced from PDL (the lowest point of the bounce candle/structure)
+Take Profit Placement:
+* TP = 4 × Stop Loss distance, measured from entry point upwards
+Post-Trade:
+* Keep monitoring the PDL level for future setups since it was respected
+
+
+3.4 BOS Setup (Continuation) - Previous Day High is BROKEN
+Scenario: Price breaks ABOVE the PDH
+Entry Conditions:
+1. Price closes ABOVE the PDH (level is broken)
+2. Price continues upward and forms a new high
+3. Price pulls back and forms a higher low
+4. Price breaks ABOVE the swing high (green line) formed after the pullback
+5. Entry: BUY when price closes above the green line
+Distance Check:
+* If the BOS forms too far above the broken PDH (subjective judgment - bot should allow configurable distance threshold), DO NOT take the trade
+* Wait for price to return to the broken PDH area for a new setup (now treating PDH as support)
+Stop Loss Placement:
+* Place SL slightly below the broken PDH level
+Take Profit Placement:
+* TP = 4 × Stop Loss distance, measured from entry point upwards
+Post-Trade:
+* The broken PDH now becomes a SUPPORT level (polarity flip)
+* Monitor for CHOCH setups (BUY) or further BOS setups (SELL if broken again)
+
+
+3.5 BOS Setup (Continuation) - Previous Day Low is BROKEN
+Scenario: Price breaks BELOW the PDL
+Entry Conditions:
+1. Price closes BELOW the PDL (level is broken)
+2. Price continues downward and forms a new low
+3. Price pulls back and forms a lower high
+4. Price breaks BELOW the swing low (green line) formed after the pullback
+5. ENTRY: SELL when price closes below the green line
+Distance Check:
+* If the BOS forms too far below the broken PDL, DO NOT take the trade
+* Wait for price to return to the broken PDL area for a new setup (now treating PDL as resistance)
+Stop Loss Placement:
+* Place SL slightly above the broken PDL level
+Take Profit Placement:
+* TP = 4 × Stop Loss distance, measured from entry point downwards
+Post-Trade:
+* The broken PDL now becomes a RESISTANCE level (polarity flip)
+* Monitor for CHOCH setups (SELL) or further BOS setups (BUY if broken again)
+
+
+3.6 Level Polarity Flip Logic
+When a previous day high/low is broken but no trade is taken (BOS too far away):
+Broken PDH (now acts as SUPPORT):
+* CHOCH at flipped level: Price returns → forms bullish CHOCH → BUY
+* BOS through flipped level: Price breaks below → forms bearish BOS → SELL
+Broken PDL (now acts as RESISTANCE):
+* CHOCH at flipped level: Price returns → forms bearish CHOCH → SELL
+* BOS through flipped level: Price breaks above → forms bullish BOS → BUY
+
+
+4. EXIT STRATEGY
+4.1 Automatic Exits
+Take Profit:
+* Fixed at 1:4 Risk-Reward Ratio
+* Bot automatically closes trade when TP is hit
+Stop Loss:
+* Fixed at entry based on setup rules
+* Bot automatically closes trade when SL is hit
+End of Day:
+* All open trades should be closed at midnight broker time (daily reset)
+
+
+4.2 Manual Management (Optional Feature)
+Traders should have the option to:
+* Manually close trades before TP/SL
+* Manually extend/modify SL
+* Manually extend/modify TP
+* Let bot continue running in automatic mode while managing specific trades manually
+
+
+4.3 Multiple Trade Management
+* Bot can open new trades even if current trades are still running
+* Maximum of 3 trades per day (across all instruments combined)
+* Each trade is managed independently with its own TP/SL
+* If a new setup appears while trades are running, bot takes the trade (if daily limit not reached)
+
+
+5. RISK MANAGEMENT
+5.1 Position Sizing
+Risk per Trade Options:
+* 1% of balance per trade
+* 2% of balance per trade
+* 3% of balance per trade
+* 4% of balance per trade
+Balance Calculation Methods:
+* Initial Balance: Risk is calculated based on the starting deposit (e.g., $100 initial = $1, $2, $3, or $4 risk per trade forever)
+* Current Balance: Risk is recalculated based on current account balance (dynamic position sizing)
+Lot Size Calculation:
+Risk Amount = Balance × Risk Percentage
+Stop Loss Distance (pips) = Entry Price - Stop Loss Price
+Lot Size = Risk Amount / (Stop Loss Distance × Pip Value)
+
+
+
+
+5.2 Daily Trade Limit
+* Maximum 3 trades per day across ALL instruments
+* Counter resets at midnight broker time
+* If 3 trades are taken, bot stops trading until next day
+* Losing or winning doesn't matter - limit is absolute
+
+
+5.3 Maximum Drawdown Protection (Optional)
+* Bot should allow setting a maximum daily loss limit (e.g., -5% of balance)
+* If reached, bot stops trading for the day
+* Resets at midnight broker time
+
+
+6. INSTRUMENTS & MONITORING
+6.1 Supported Instruments
+Indices:
+1. NAS100 (Nasdaq 100)
+2. EU50 or GER40 (European indices - to be confirmed)
+3. JP225 (Nikkei 225 - Japan)
+Forex:
+1. USDCAD
+2. USDJPY
+
+
+6.2 Multi-Instrument Monitoring
+* Bot monitors ALL 5 instruments simultaneously on 3-minute charts
+* Each instrument is analyzed independently
+* Previous day highs/lows are tracked separately for each instrument
+* Trades can be taken on multiple instruments as long as daily limit (3 trades total) is not exceeded
+
+
+6.3 Chart Type
+* Line Chart ONLY (not candlestick or bar charts)
+* Use closing prices for structure identification
+
+
+7. OPERATIONAL SETTINGS
+7.1 Trading Hours
+* Active: 24/5 (Monday to Friday)
+* Inactive: Weekends (Saturday-Sunday)
+* Session Filter: None (trades any session - London, NY, Asian)
+
+
+7.2 News Filter (Optional)
+High-Impact News Avoidance:
+* User can toggle ON/OFF in settings
+* If enabled, bot pauses trading 30 minutes before and after high-impact news events
+* News calendar integration required (forexfactory.com, investing.com, or similar)
+User Choice:
+* Trader decides whether to enable this filter
+* Default: Disabled (trades through news)
+
+
+7.3 Bot Activation
+Startup Sequence:
+1. User deposits funds into broker account
+2. User configures bot settings:
+   * Risk percentage (1%, 2%, 3%, or 4%)
+   * Balance calculation method (initial or current)
+   * News filter (ON/OFF)
+   * Daily trade limit (default: 3)
+   * BOS distance threshold (default: configurable in pips)
+3. User activates bot
+4. Bot starts monitoring all instruments
+Continuous Operation:
+* Bot runs 24/5 automatically once deployed
+* No need for user to be online
+* Bot should be hosted on a VPS or cloud server for uninterrupted operation
+
+
+8. TECHNICAL REQUIREMENTS
+8.1 Data Requirements
+* Real-time 3-minute price data for all 5 instruments
+* Historical data for previous day high/low calculation
+* News calendar data (if news filter enabled)
+
+
+8.2 Broker Integration
+Broker: OANDA (primary choice)
+API Access:
+* REST API v20 for order execution
+* Streaming API for real-time price data
+* Account information access for balance checking
+Required Permissions:
+* Read account balance
+* Place market orders
+* Modify orders (SL/TP)
+* Close positions
+* Read open positions
+
+
+8.3 Hosting Requirements
+VPS/Cloud Server Specifications:
+* 24/7 uptime
+* Stable internet connection
+* Low latency to broker servers
+* Minimum 1GB RAM
+* Python 3.8+ or Node.js environment
+Recommended Providers:
+* AWS EC2
+* Digital Ocean
+* Vultr
+* Forex VPS providers
+
+
+9. BOT ARCHITECTURE
+9.1 Core Modules
+1. Data Module:
+* Fetches real-time 3-minute price data
+* Calculates previous day high/low at midnight
+* Maintains historical price data
+2. Structure Detection Module:
+* Identifies swing highs and swing lows
+* Detects CHOCH patterns (reversal)
+* Detects BOS patterns (continuation)
+* Marks previous day levels
+3. Signal Generation Module:
+* Validates CHOCH/BOS entry conditions
+* Calculates entry price, SL, and TP
+* Checks daily trade limit
+* Checks news filter (if enabled)
+4. Risk Management Module:
+* Calculates position size based on risk settings
+* Validates account balance
+* Tracks daily trade count
+* Monitors maximum drawdown (if enabled)
+5. Order Execution Module:
+* Places market orders via OANDA API
+* Sets SL and TP levels
+* Monitors open positions
+* Handles order errors and retries
+6. Trade Management Module:
+* Tracks all open trades
+* Updates SL/TP if manually adjusted
+* Closes trades at TP/SL/EOD
+* Logs trade performance
+7. Monitoring & Logging Module:
+* Logs all trades (entry, exit, P&L)
+* Sends notifications (optional: email, Telegram, SMS)
+* Generates daily performance reports
+* Error logging and debugging
+
+
+9.2 Database Schema
+Tables:
+1. previous_day_levels
+* instrument (string)
+* date (date)
+* high_price (float)
+* low_price (float)
+* is_high_broken (boolean)
+* is_low_broken (boolean)
+2. open_trades
+* trade_id (int, primary key)
+* instrument (string)
+* entry_time (datetime)
+* entry_price (float)
+* direction (string: BUY/SELL)
+* setup_type (string: CHOCH/BOS)
+* stop_loss (float)
+* take_profit (float)
+* lot_size (float)
+* risk_amount (float)
+* status (string: OPEN/CLOSED)
+3. closed_trades
+* trade_id (int, primary key)
+* instrument (string)
+* entry_time (datetime)
+* exit_time (datetime)
+* entry_price (float)
+* exit_price (float)
+* direction (string: BUY/SELL)
+* setup_type (string: CHOCH/BOS)
+* stop_loss (float)
+* take_profit (float)
+* lot_size (float)
+* risk_amount (float)
+* pnl (float)
+* exit_reason (string: TP/SL/MANUAL/EOD)
+4. bot_settings
+* setting_name (string)
+* setting_value (string)
+* last_updated (datetime)
+5. daily_stats
+* date (date)
+* trades_taken (int)
+* winning_trades (int)
+* losing_trades (int)
+* total_pnl (float)
+* balance_start (float)
+* balance_end (float)
+
+
+10. USER INTERFACE (Optional Dashboard)
+10.1 Dashboard Features
+1. Overview Panel:
+* Current account balance
+* Today's P&L
+* Open trades count
+* Trades remaining today (3 - trades_taken)
+2. Active Trades Panel:
+* List of open trades with:
+   * Instrument
+   * Entry price
+   * Current price
+   * SL/TP levels
+   * Unrealized P&L
+   * Manual close button
+   * Modify SL/TP button
+3. Settings Panel:
+* Risk percentage selector
+* Balance calculation method toggle
+* News filter toggle
+* Daily trade limit input
+* BOS distance threshold input
+* Start/Stop bot button
+4. Trade History:
+* Table of closed trades
+* Filters by date, instrument, setup type
+* Export to CSV
+5. Performance Metrics:
+* Win rate %
+* Average RR achieved
+* Best/worst trade
+* Daily/weekly/monthly P&L chart
+
+
+11. NOTIFICATIONS (Optional)
+Notification Types:
+* Trade opened (instrument, direction, entry price)
+* Trade closed (P&L, exit reason)
+* Daily trade limit reached
+* Maximum drawdown reached
+* Bot stopped/started
+* Error alerts
+Delivery Methods:
+* Telegram bot
+* Email
+* SMS (optional)
+* Dashboard alerts
+
+
+12. TESTING STRATEGY
+12.1 Backtesting
+Historical Data:
+* Minimum 6 months of 3-minute historical data
+* Test on all 5 instruments separately
+* Calculate:
+   * Total trades
+   * Win rate
+   * Average RR
+   * Maximum drawdown
+   * Sharpe ratio
+
+
+12.2 Paper Trading (Demo Account)
+Duration: Minimum 1 month
+Objectives:
+* Validate structure detection logic
+* Test OANDA API integration
+* Monitor for false signals
+* Verify position sizing calculations
+* Check daily trade limit enforcement
+Success Criteria:
+* No critical bugs
+* Trades execute within 1 second of signal
+* SL/TP placed correctly 100% of time
+* Position sizing accurate within 0.01 lots
+
+
+12.3 Live Trading (Small Capital)
+Initial Capital: $100 - $500
+Duration: 2-4 weeks
+Risk Setting: Start with 1% risk per trade
+Monitoring:
+* Track every trade manually
+* Compare bot decisions with manual analysis
+* Verify P&L calculations
+* Check for slippage issues
+
+
+13. RISK DISCLAIMERS
+Trading Risks:
+* Trading forex and indices involves substantial risk of loss
+* Past performance does not guarantee future results
+* Bot operates based on historical patterns which may not repeat
+* Slippage, spread, and broker execution can affect results
+* News events can cause rapid price movements beyond SL protection
+Technical Risks:
+* Internet connection loss can prevent bot from managing trades
+* Broker API downtime can disrupt operations
+* VPS/server crashes can stop bot execution
+* Bug or logic errors can cause unexpected behavior
+User Responsibility:
+* User is responsible for monitoring bot performance
+* User should not risk more than they can afford to lose
+* User should understand the strategy before deploying live
+* User should regularly check bot status and open positions
+
+
+14. MAINTENANCE & UPDATES
+14.1 Regular Maintenance
+Daily:
+* Check bot status and connectivity
+* Review open trades
+* Verify daily reset occurred properly
+Weekly:
+* Review trade performance
+* Check for API changes from OANDA
+* Update news calendar data
+Monthly:
+* Analyze strategy performance
+* Optimize settings if needed
+* Update bot software if new version available
+
+
+14.2 Version Control
+* Use Git for code versioning
+* Tag stable releases (v1.0, v1.1, etc.)
+* Maintain changelog
+* Test updates on demo before deploying to live
+
+
+15. SUPPORT & DOCUMENTATION
+User Manual:
+* Installation guide
+* Configuration guide
+* Troubleshooting section
+* FAQ
+Technical Documentation:
+* API integration guide
+* Code architecture
+* Database schema
+* Module descriptions
+Video Tutorials:
+* How to set up the bot
+* How to configure settings
+* How to interpret dashboard
+* How to manually manage trades
+
+
+16. FUTURE ENHANCEMENTS (Phase 2)
+Potential features to add later:
+* Multiple timeframe analysis (add 15min confirmation)
+* Dynamic stop loss trailing
+* Partial profit taking (close 50% at 1:2 RR, rest at 1:4)
+* Machine learning for structure detection optimization
+* Additional instruments (gold, oil, crypto)
+* Social trading (copy other traders' settings)
+* Mobile app for monitoring
+* Advanced backtesting with Monte Carlo simulation
+
+
+17. SUCCESS METRICS
+Performance Targets (Realistic Expectations):
+* Win rate: 40-50% (since RR is 1:4, even 30% win rate is profitable)
+* Average monthly return: 5-15%
+* Maximum drawdown: <20%
+* Trade frequency: 1-3 trades per day average
+Bot Reliability:
+* Uptime: >99%
+* Order execution success rate: >98%
+* Signal accuracy: >95% (correctly identifies setups)
+
+
+18. GLOSSARY
+* CHOCH (Change of Character): A reversal pattern where price fails to continue in the previous direction and breaks structure in the opposite direction
+* BOS (Break of Structure): A continuation pattern where price breaks through a level and continues in the same direction
+* PDH (Previous Day High): The highest price point reached during the previous trading day
+* PDL (Previous Day Low): The lowest price point reached during the previous trading day
+* Swing High: A local peak in price where price makes a higher point before reversing
+* Swing Low: A local valley in price where price makes a lower point before reversing
+* Polarity Flip: When a support level becomes resistance (or vice versa) after being broken
+* RR (Risk-Reward Ratio): The ratio of potential profit to potential loss (1:4 means risking $1 to make $4)
+
+
+IMPLEMENTATION CHECKLIST
+Phase 1: Development (Weeks 1-4)
+* [ ] Set up development environment
+* [ ] Integrate OANDA API
+* [ ] Build data fetching module
+* [ ] Build structure detection module (CHOCH/BOS)
+* [ ] Build signal generation module
+* [ ] Build risk management module
+* [ ] Build order execution module
+* [ ] Build trade management module
+* [ ] Build logging module
+* [ ] Create database schema
+* [ ] Unit test each module
+Phase 2: Testing (Weeks 5-8)
+* [ ] Backtest on historical data
+* [ ] Deploy to demo account
+* [ ] Monitor paper trading for 4 weeks
+* [ ] Fix bugs and optimize
+* [ ] Create user documentation
+Phase 3: Live Deployment (Week 9+)
+* [ ] Deploy to VPS
+* [ ] Start with small capital ($100-500)
+* [ ] Monitor closely for 2 weeks
+* [ ] Scale up gradually if successful
+* [ ] Implement dashboard (optional)
+* [ ] Add notifications (optional)

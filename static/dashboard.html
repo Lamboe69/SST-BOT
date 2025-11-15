@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SST Trading Bot Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const Dashboard = () => {
+            const [status, setStatus] = useState({ running: false, account_balance: 0, today_pnl: 0, open_trades: 0, trades_remaining: 3 });
+            const [trades, setTrades] = useState([]);
+
+            const fetchData = async () => {
+                try {
+                    const statusRes = await fetch('/bot/status');
+                    if (statusRes.ok) setStatus(await statusRes.json());
+                    
+                    const tradesRes = await fetch('/trades/open');
+                    if (tradesRes.ok) {
+                        const data = await tradesRes.json();
+                        setTrades(data.trades || []);
+                    }
+                } catch (e) {}
+            };
+
+            const toggleBot = async () => {
+                const endpoint = status.running ? '/bot/stop' : '/bot/start';
+                await fetch(endpoint, { method: 'POST' });
+                fetchData();
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, 5000);
+                return () => clearInterval(interval);
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-slate-900 text-white p-6">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="flex justify-between items-center mb-8">
+                            <h1 className="text-3xl font-bold">SST Trading Bot</h1>
+                            <button
+                                onClick={toggleBot}
+                                className={`px-6 py-3 rounded-lg font-semibold ${
+                                    status.running ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
+                                }`}
+                            >
+                                {status.running ? 'Stop Bot' : 'Start Bot'}
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-4 mb-8">
+                            <div className="bg-slate-800 p-6 rounded-xl">
+                                <div className="text-sm text-slate-400">Balance</div>
+                                <div className="text-2xl font-bold">${status.account_balance?.toFixed(2) || '0.00'}</div>
+                            </div>
+                            <div className="bg-slate-800 p-6 rounded-xl">
+                                <div className="text-sm text-slate-400">Today P&L</div>
+                                <div className={`text-2xl font-bold ${status.today_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                    {status.today_pnl >= 0 ? '+' : ''}{status.today_pnl?.toFixed(2) || '0.00'}
+                                </div>
+                            </div>
+                            <div className="bg-slate-800 p-6 rounded-xl">
+                                <div className="text-sm text-slate-400">Open Trades</div>
+                                <div className="text-2xl font-bold">{status.open_trades || 0}</div>
+                            </div>
+                            <div className="bg-slate-800 p-6 rounded-xl">
+                                <div className="text-sm text-slate-400">Trades Left</div>
+                                <div className="text-2xl font-bold">{status.trades_remaining || 0}</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-800 p-6 rounded-xl">
+                            <h2 className="text-xl font-bold mb-4">Active Trades</h2>
+                            {trades.length === 0 ? (
+                                <div className="text-center py-8 text-slate-500">No active trades</div>
+                            ) : (
+                                trades.map(trade => (
+                                    <div key={trade.id} className="bg-slate-700 p-4 rounded-lg mb-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold">{trade.instrument} {trade.direction}</div>
+                                                <div className="text-sm text-slate-400">{trade.setup_type}</div>
+                                            </div>
+                                            <div className={`font-bold ${trade.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                {trade.unrealized_pnl >= 0 ? '+' : ''}{trade.unrealized_pnl?.toFixed(2) || '0.00'}
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+                                            <div>Entry: {trade.entry_price?.toFixed(2)}</div>
+                                            <div>Current: {trade.current_price?.toFixed(2)}</div>
+                                            <div className="text-red-400">SL: {trade.stop_loss?.toFixed(2)}</div>
+                                            <div className="text-green-400">TP: {trade.take_profit?.toFixed(2)}</div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>
