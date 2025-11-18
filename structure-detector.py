@@ -6,6 +6,7 @@ Detects CHOCH (Change of Character) and BOS (Break of Structure) patterns
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import numpy as np
+from line_chart_config import LINE_CHART_CONFIG
 
 class StructureDetector:
     def __init__(self, oanda_client, instruments: List[str]):
@@ -33,16 +34,22 @@ class StructureDetector:
     
     def analyze(self, instrument: str, candles: List[Dict]) -> List[Dict]:
         """
-        Analyze candles for CHOCH and BOS setups
+        Analyze candles for CHOCH and BOS setups using line chart methodology
+        Focuses on closing prices while using OHLC for swing detection
         
         Args:
             instrument: Trading instrument
-            candles: List of candle data
+            candles: List of candle data with line_price field
         
         Returns:
             List of trading signals
         """
         signals = []
+        
+        # ENFORCE LINE CHART MODE
+        if not LINE_CHART_CONFIG.is_line_chart_mode():
+            print(f"⚠️ [{instrument}] ERROR: Line chart mode is disabled! Enabling it now...")
+            LINE_CHART_CONFIG.LINE_CHART_MODE = True
         
         # Update previous day levels
         self._update_previous_day_levels(instrument, candles)
@@ -52,6 +59,9 @@ class StructureDetector:
         if not levels:
             return signals
         
+        print(f"📈 [{instrument}] ANALYZING IN LINE CHART MODE - Using closing prices only")
+        print(f"🔄 [{instrument}] Line Chart Config: {LINE_CHART_CONFIG.get_config()}")
+        
         pdh = levels.get('high')
         pdl = levels.get('low')
         pdh_broken = levels.get('high_broken', False)
@@ -60,8 +70,8 @@ class StructureDetector:
         # Calculate ATR for distance validation
         self._calculate_atr(instrument, candles)
         
-        # Detect swing highs and lows
-        swing_highs, swing_lows = self._detect_swings(candles)
+        # Detect swing highs and lows using line chart methodology (closing prices)
+        swing_highs, swing_lows = self._detect_swings_line_chart(candles)
         
         # Check for CHOCH setups at PDH (not broken)
         if pdh and not pdh_broken:
@@ -131,12 +141,13 @@ class StructureDetector:
             'updated_at': datetime.now()
         }
     
-    def _detect_swings(self, candles: List[Dict], lookback: int = 5) -> tuple:
+    def _detect_swings_line_chart(self, candles: List[Dict], lookback: int = 5) -> tuple:
         """
-        Detect swing highs and swing lows
+        Detect swing highs and swing lows using LINE CHART methodology
+        Uses closing prices only as per line chart strategy
         
         Args:
-            candles: Price data
+            candles: Price data with closing prices
             lookback: Number of candles to look back for swing detection
         
         Returns:
@@ -146,46 +157,54 @@ class StructureDetector:
         swing_lows = []
         
         for i in range(lookback, len(candles) - lookback):
-            # Check for swing high
+            current_close = candles[i]['close']
+            
+            # Check for swing high using CLOSING PRICES only (line chart method)
             is_swing_high = True
             for j in range(1, lookback + 1):
-                if candles[i]['high'] <= candles[i - j]['high'] or candles[i]['high'] <= candles[i + j]['high']:
+                if current_close <= candles[i - j]['close'] or current_close <= candles[i + j]['close']:
                     is_swing_high = False
                     break
             
             if is_swing_high:
                 swing_highs.append({
-                    'price': candles[i]['high'],
+                    'price': current_close,  # Use closing price for line chart
                     'index': i,
                     'time': candles[i]['time']
                 })
             
-            # Check for swing low
+            # Check for swing low using CLOSING PRICES only (line chart method)
             is_swing_low = True
             for j in range(1, lookback + 1):
-                if candles[i]['low'] >= candles[i - j]['low'] or candles[i]['low'] >= candles[i + j]['low']:
+                if current_close >= candles[i - j]['close'] or current_close >= candles[i + j]['close']:
                     is_swing_low = False
                     break
             
             if is_swing_low:
                 swing_lows.append({
-                    'price': candles[i]['low'],
+                    'price': current_close,  # Use closing price for line chart
                     'index': i,
                     'time': candles[i]['time']
                 })
         
         return swing_highs, swing_lows
     
+    def _detect_swings(self, candles: List[Dict], lookback: int = 5) -> tuple:
+        """
+        Legacy swing detection method - kept for compatibility
+        """
+        return self._detect_swings_line_chart(candles, lookback)
+    
     def _detect_choch_at_high(self, candles: List[Dict], pdh: float, swing_lows: List[Dict], instrument: str) -> Optional[Dict]:
-        """Detect CHOCH (reversal) at previous day high"""
+        """Detect CHOCH (reversal) at previous day high using LINE CHART method"""
         if len(candles) < 20:
             return None
         
         recent_candles = candles[-20:]  # Last 20 candles
         current_price = recent_candles[-1]['close']
         
-        # Check if price recently touched PDH (within last 20 candles)
-        touched_pdh = any(c['high'] >= pdh * 0.999 for c in recent_candles)  # 0.1% tolerance
+        # Check if CLOSING PRICE recently touched PDH (line chart method)
+        touched_pdh = any(c['close'] >= pdh * 0.999 for c in recent_candles)  # 0.1% tolerance
         
         if not touched_pdh:
             return None
@@ -200,8 +219,8 @@ class StructureDetector:
         
         # Check if current price broke below the swing low (CHOCH confirmation)
         if current_price < latest_swing_low['price']:
-            # Find the rejection high (highest point before the drop)
-            rejection_high = max([c['high'] for c in recent_candles[:15]])
+            # Find the rejection high using CLOSING PRICES (line chart method)
+            rejection_high = max([c['close'] for c in recent_candles[:15]])
             
             # Calculate stop loss (above rejection high)
             stop_loss = rejection_high * 1.001  # Add small buffer
@@ -220,15 +239,15 @@ class StructureDetector:
         return None
     
     def _detect_choch_at_low(self, candles: List[Dict], pdl: float, swing_highs: List[Dict], instrument: str) -> Optional[Dict]:
-        """Detect CHOCH (reversal) at previous day low"""
+        """Detect CHOCH (reversal) at previous day low using LINE CHART method"""
         if len(candles) < 20:
             return None
         
         recent_candles = candles[-20:]
         current_price = recent_candles[-1]['close']
         
-        # Check if price recently touched PDL
-        touched_pdl = any(c['low'] <= pdl * 1.001 for c in recent_candles)
+        # Check if CLOSING PRICE recently touched PDL (line chart method)
+        touched_pdl = any(c['close'] <= pdl * 1.001 for c in recent_candles)
         
         if not touched_pdl:
             return None
@@ -243,8 +262,8 @@ class StructureDetector:
         
         # Check if current price broke above the swing high (CHOCH confirmation)
         if current_price > latest_swing_high['price']:
-            # Find the rejection low (lowest point before the rally)
-            rejection_low = min([c['low'] for c in recent_candles[:15]])
+            # Find the rejection low using CLOSING PRICES (line chart method)
+            rejection_low = min([c['close'] for c in recent_candles[:15]])
             
             # Calculate stop loss (below rejection low)
             stop_loss = rejection_low * 0.999
@@ -263,21 +282,21 @@ class StructureDetector:
         return None
     
     def _detect_bos_after_high_break(self, candles: List[Dict], pdh: float, swing_highs: List[Dict], instrument: str) -> Optional[Dict]:
-        """Detect BOS (continuation) after PDH is broken"""
+        """Detect BOS (continuation) after PDH is broken using LINE CHART method"""
         if len(candles) < 30:
             return None
         
         recent_candles = candles[-30:]
         current_price = recent_candles[-1]['close']
         
-        # Check if PDH was recently broken (price went above)
-        broken_pdh = any(c['high'] > pdh for c in recent_candles[:20])
+        # Check if PDH was recently broken using CLOSING PRICES (line chart method)
+        broken_pdh = any(c['close'] > pdh for c in recent_candles[:20])
         
         if not broken_pdh:
             return None
         
         # Check if BOS is not too far from PDH using ATR-based distance
-        current_high = max([c['high'] for c in recent_candles])
+        current_high = max([c['close'] for c in recent_candles])  # Use closing prices
         
         if self._is_bos_too_far(instrument, current_high, pdh):
             distance_ratio = self._calculate_distance_ratio(instrument, current_high, pdh)
@@ -315,21 +334,21 @@ class StructureDetector:
         return None
     
     def _detect_bos_after_low_break(self, candles: List[Dict], pdl: float, swing_lows: List[Dict], instrument: str) -> Optional[Dict]:
-        """Detect BOS (continuation) after PDL is broken"""
+        """Detect BOS (continuation) after PDL is broken using LINE CHART method"""
         if len(candles) < 30:
             return None
         
         recent_candles = candles[-30:]
         current_price = recent_candles[-1]['close']
         
-        # Check if PDL was recently broken (price went below)
-        broken_pdl = any(c['low'] < pdl for c in recent_candles[:20])
+        # Check if PDL was recently broken using CLOSING PRICES (line chart method)
+        broken_pdl = any(c['close'] < pdl for c in recent_candles[:20])
         
         if not broken_pdl:
             return None
         
         # Check if BOS is not too far from PDL using ATR-based distance
-        current_low = min([c['low'] for c in recent_candles])
+        current_low = min([c['close'] for c in recent_candles])  # Use closing prices
         
         if self._is_bos_too_far(instrument, current_low, pdl):
             distance_ratio = self._calculate_distance_ratio(instrument, current_low, pdl)

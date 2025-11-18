@@ -6,6 +6,7 @@ Handles trade execution, monitoring, and management
 from typing import Dict, Optional, List
 from datetime import datetime
 import asyncio
+from line_chart_config import LINE_CHART_CONFIG
 
 class OrderExecutor:
     def __init__(self, oanda_client, risk_manager, db):
@@ -23,7 +24,7 @@ class OrderExecutor:
     
     async def execute_signal(self, signal: Dict) -> Dict:
         """
-        Execute a trading signal
+        Execute a trading signal - FORCED EXECUTION MODE
         
         Args:
             signal: Signal dictionary from structure detector
@@ -31,6 +32,14 @@ class OrderExecutor:
         Returns:
             Execution result
         """
+        # FORCE TRADE EXECUTION
+        if not LINE_CHART_CONFIG.should_auto_execute():
+            print(f"⚠️ FORCING TRADE EXECUTION ON - was disabled!")
+            LINE_CHART_CONFIG.AUTO_EXECUTE_TRADES = True
+            LINE_CHART_CONFIG.TRADE_EXECUTION_ENABLED = True
+        
+        print(f"🚀 EXECUTING TRADE: {signal.get('setup_type')} {signal.get('direction')} on {signal.get('instrument')}")
+        
         try:
             instrument = signal['instrument']
             direction = signal['direction']

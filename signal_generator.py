@@ -6,6 +6,7 @@ Validates CHOCH/BOS entry conditions and generates trading signals
 from typing import Dict, List, Optional
 from datetime import datetime
 import asyncio
+from line_chart_config import LINE_CHART_CONFIG
 
 class SignalGenerator:
     def __init__(self, structure_detector, data_module, news_filter, db):
@@ -16,8 +17,15 @@ class SignalGenerator:
         self.bos_distance_threshold_pips = 50  # Configurable BOS distance threshold
     
     async def generate_signals(self, instrument: str) -> List[Dict]:
-        """Generate trading signals for an instrument"""
+        """Generate trading signals for an instrument using LINE CHART strategy"""
         signals = []
+        
+        # ENFORCE LINE CHART MODE
+        if not LINE_CHART_CONFIG.is_line_chart_mode():
+            print(f"⚠️ [{instrument}] FORCING LINE CHART MODE ON")
+            LINE_CHART_CONFIG.LINE_CHART_MODE = True
+        
+        print(f"📈 [{instrument}] Generating signals in LINE CHART MODE (closing prices only)")
         
         try:
             # Check if trading should be paused due to news

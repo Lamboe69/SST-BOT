@@ -93,20 +93,25 @@ class DataModule:
             print(f"❌ Error calculating levels for {instrument}: {str(e)}")
     
     async def get_real_time_data(self, instrument: str, count: int = 500) -> List[Dict]:
-        """Get real-time 3-minute candle data"""
+        """Get real-time 3-minute candle data optimized for line chart analysis"""
         try:
             candles = await self.oanda_client.get_candles(instrument, "M3", count)
             
-            # Convert to line chart data (closing prices only as per design)
-            line_data = []
+            # Return full OHLC data but optimized for line chart strategy
+            # The strategy focuses on closing prices but needs OHLC for swing detection
+            processed_data = []
             for candle in candles:
-                line_data.append({
+                processed_data.append({
                     'time': candle['time'],
-                    'price': candle['close'],  # Use closing price for line chart
-                    'volume': candle['volume']
+                    'open': candle['open'],
+                    'high': candle['high'],
+                    'low': candle['low'],
+                    'close': candle['close'],  # Primary focus for line chart strategy
+                    'volume': candle['volume'],
+                    'line_price': candle['close']  # Explicit line chart price
                 })
             
-            return line_data
+            return processed_data
             
         except Exception as e:
             print(f"❌ Error fetching real-time data for {instrument}: {str(e)}")

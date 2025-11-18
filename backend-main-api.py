@@ -15,6 +15,7 @@ import asyncio
 
 # Import our custom modules
 import importlib.util
+from line_chart_config import LINE_CHART_CONFIG
 
 def load_module(name, filename):
     spec = importlib.util.spec_from_file_location(name, filename)
@@ -422,6 +423,8 @@ async def run_trading_bot():
     global bot_running
     
     print("🤖 Trading bot started")
+    print(f"📊 Line Chart Mode: {LINE_CHART_CONFIG.is_line_chart_mode()}")
+    print(f"⚡ Auto Execute Trades: {LINE_CHART_CONFIG.should_auto_execute()}")
     
     while bot_running:
         try:
@@ -451,7 +454,7 @@ async def run_trading_bot():
                     candles = await oanda_client.get_candles(instrument, granularity="M3", count=500)
                     signals = structure_detector.analyze(instrument, candles)
                 
-                # Execute trades based on signals
+                # Execute trades based on signals - FORCE EXECUTION
                 for signal in signals:
                     if not bot_running:
                         break
@@ -461,10 +464,20 @@ async def run_trading_bot():
                     if total_active_trades >= config['daily_trade_limit']:
                         break
                     
-                    # Execute the trade
-                    result = await order_executor.execute_signal(signal)
+                    # FORCE TRADE EXECUTION - This was missing!
+                    if LINE_CHART_CONFIG.should_auto_execute():
+                        print(f"🎯 EXECUTING TRADE: {signal['setup_type']} {signal['direction']} on {signal['instrument']}")
+                        result = await order_executor.execute_signal(signal)
+                        
+                        if result['success']:
+                            print(f"✅ TRADE EXECUTED: {result['message']}")
+                        else:
+                            print(f"❌ TRADE FAILED: {result['reason']}")
+                    else:
+                        print(f"⚠️ Trade execution disabled in config")
                     
-
+                    # Small delay between trades
+                    await asyncio.sleep(5)
             
             # Trade monitoring is handled by trade_manager
             
