@@ -125,6 +125,21 @@ class Database:
             )
         """)
         
+        # Historical levels table for long-term reference
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS historical_levels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                instrument TEXT NOT NULL,
+                date DATE NOT NULL,
+                high_price REAL NOT NULL,
+                low_price REAL NOT NULL,
+                is_high_broken BOOLEAN DEFAULT 0,
+                is_low_broken BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(instrument, date)
+            )
+        """)
+        
         self.conn.commit()
         print("✅ Database tables initialized")
     
@@ -480,6 +495,40 @@ class Database:
         """, (today,))
         
         self.conn.commit()
+    
+    def save_historical_level(self, level_data: Dict):
+        """Save historical daily level for long-term reference"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            INSERT OR REPLACE INTO historical_levels (
+                instrument, date, high_price, low_price, is_high_broken, is_low_broken
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            level_data['instrument'],
+            level_data['date'],
+            level_data['high_price'],
+            level_data['low_price'],
+            level_data['is_high_broken'],
+            level_data['is_low_broken']
+        ))
+        
+        self.conn.commit()
+    
+    def get_historical_levels(self, instrument: str, days: int = 90) -> List[Dict]:
+        """Get unbroken historical levels for an instrument"""
+        cursor = self.conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM historical_levels 
+            WHERE instrument = ? 
+            AND (is_high_broken = 0 OR is_low_broken = 0)
+            AND date >= date('now', '-{} days')
+            ORDER BY date DESC
+        """.format(days), (instrument,))
+        
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
     
     def close(self):
         """Close database connection"""

@@ -44,40 +44,57 @@ class DataModule:
         return False
     
     async def _calculate_previous_day_levels(self, instrument: str):
-        """Calculate previous day high and low for an instrument"""
+        """Calculate and store historical daily levels for long-term reference"""
         try:
-            # Get 2 days of 5-minute data to ensure we have previous day
-            candles = await self.oanda_client.get_candles(instrument, "M5", 576)  # 2 days
+            # Get 3 months of daily data for historical levels
+            daily_candles = await self.oanda_client.get_candles(instrument, "D", 90)  # 3 months
             
-            if len(candles) < 288:  # Need at least 1 day
-                print(f"⚠️ Insufficient data for {instrument}")
+            if len(daily_candles) < 2:
+                print(f"⚠️ Insufficient daily data for {instrument}")
                 return
             
-            # Get yesterday's candles (288 candles = 24 hours of 5-min data)
-            yesterday_candles = candles[-576:-288] if len(candles) >= 576 else candles[:-288]
+            # Process each day's levels and store unbroken ones
+            for i, candle in enumerate(daily_candles[:-1]):  # Exclude today
+                day_date = datetime.fromisoformat(candle['time'].replace('Z', '+00:00')).date()
+                day_high = candle['close']  # Use closing price as high for line chart
+                day_low = candle['close']   # Use closing price as low for line chart
+                
+                # Check if this level has been broken by any future day
+                broken_high = False
+                broken_low = False
+                
+                for future_candle in daily_candles[i+1:]:
+                    future_close = future_candle['close']
+                    if future_close > day_high:
+                        broken_high = True
+                    if future_close < day_low:
+                        broken_low = True
+                
+                # Save historical level to database
+                level_data = {
+                    'instrument': instrument,
+                    'date': day_date,
+                    'high_price': day_high,
+                    'low_price': day_low,
+                    'is_high_broken': broken_high,
+                    'is_low_broken': broken_low
+                }
+                
+                self.db.save_historical_level(level_data)
             
-            if not yesterday_candles:
-                print(f"⚠️ No yesterday data for {instrument}")
-                return
+            # Also calculate yesterday's levels for immediate use
+            yesterday = daily_candles[-2]
+            today = daily_candles[-1]
             
-            # Calculate PDH and PDL using CLOSE PRICES ONLY (line chart)
-            yesterday_closes = [c['close'] for c in yesterday_candles]
-            pdh = max(yesterday_closes)
-            pdl = min(yesterday_closes)
+            pdh = yesterday['close']
+            pdl = yesterday['close']
+            pdh_broken = today['close'] > pdh
+            pdl_broken = today['close'] < pdl
             
-            # Check if levels are broken using CLOSE PRICES ONLY
-            today_candles = candles[-288:]  # Today's data
-            today_closes = [c['close'] for c in today_candles]
-            current_high = max(today_closes)
-            current_low = min(today_closes)
-            
-            pdh_broken = current_high > pdh
-            pdl_broken = current_low < pdl
-            
-            # Save to database
+            # Save yesterday's level
             level_data = {
                 'instrument': instrument,
-                'date': datetime.now().date(),
+                'date': datetime.now().date() - timedelta(days=1),
                 'high_price': pdh,
                 'low_price': pdl,
                 'is_high_broken': pdh_broken,
@@ -86,10 +103,7 @@ class DataModule:
             
             self.db.save_previous_day_levels(level_data)
             
-            status_high = "BROKEN" if pdh_broken else "INTACT"
-            status_low = "BROKEN" if pdl_broken else "INTACT"
-            
-            print(f"📈 {instrument}: PDH={pdh:.4f} ({status_high}), PDL={pdl:.4f} ({status_low})")
+            print(f"📈 {instrument}: Stored 90 days of historical levels")
             
         except Exception as e:
             print(f"❌ Error calculating levels for {instrument}: {str(e)}")
@@ -117,6 +131,10 @@ class DataModule:
     async def get_previous_day_levels(self, instrument: str) -> Optional[Dict]:
         """Get previous day levels for an instrument"""
         return self.db.get_previous_day_levels(instrument)
+    
+    async def get_historical_levels(self, instrument: str, days: int = 90) -> List[Dict]:
+        """Get all unbroken historical levels for an instrument"""
+        return self.db.get_historical_levels(instrument, days)
     
     async def update_level_status(self, instrument: str, high_broken: bool = None, low_broken: bool = None):
         """Update the broken status of previous day levels"""
