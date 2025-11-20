@@ -1,8 +1,8 @@
 """
 Structure Detection Module
 Detects CHOCH (Change of Character) and BOS (Break of Structure) patterns
-✅ USES LINE GRAPH (CLOSE PRICES ONLY) - NOT CANDLESTICKS
-Uses ATR-based dynamic distance calculation for BOS validation
+✅ USES ONLY LINE GRAPH (CLOSE PRICES ONLY) - NO OHLC DATA
+Uses close-to-close volatility for BOS validation
 """
 
 from typing import List, Dict, Optional
@@ -51,7 +51,7 @@ class StructureDetector:
             print(f"⚠️ Not enough candles for {instrument}: {len(candles)}")
             return signals
         
-        # Convert candles to line graph (close prices only)
+        # Extract ONLY close prices for pure line graph analysis
         close_prices = [c['close'] for c in candles]
         
         # Calculate ATR for distance validation
@@ -192,27 +192,24 @@ class StructureDetector:
         return signals
 
     def _calculate_atr(self, instrument: str, candles: List[Dict], period: int = 14):
-        """Calculate Average True Range (ATR) for dynamic distance measurement"""
+        """Calculate volatility using CLOSE PRICES ONLY for line chart"""
         if len(candles) < period + 1:
             return
         
-        true_ranges = []
+        # Use close-to-close price changes for line chart volatility
+        price_changes = []
         
         for i in range(1, len(candles)):
-            high = candles[i]['high']
-            low = candles[i]['low']
+            current_close = candles[i]['close']
             prev_close = candles[i-1]['close']
             
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close)
-            )
-            true_ranges.append(tr)
+            price_change = abs(current_close - prev_close)
+            price_changes.append(price_change)
         
-        if len(true_ranges) >= period:
-            atr = sum(true_ranges[-period:]) / period
-            self.atr_values[instrument] = atr
+        if len(price_changes) >= period:
+            # Average price change as volatility measure
+            volatility = sum(price_changes[-period:]) / period
+            self.atr_values[instrument] = volatility
 
     def _is_bos_too_far(self, instrument: str, reference_level: float, bos_level: float, direction: str) -> bool:
         """Determine if BOS formation is too far from the reference level using ATR"""

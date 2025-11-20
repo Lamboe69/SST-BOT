@@ -60,14 +60,16 @@ class DataModule:
                 print(f"⚠️ No yesterday data for {instrument}")
                 return
             
-            # Calculate PDH and PDL
-            pdh = max([c['high'] for c in yesterday_candles])
-            pdl = min([c['low'] for c in yesterday_candles])
+            # Calculate PDH and PDL using CLOSE PRICES ONLY (line chart)
+            yesterday_closes = [c['close'] for c in yesterday_candles]
+            pdh = max(yesterday_closes)
+            pdl = min(yesterday_closes)
             
-            # Check if levels are already broken today
+            # Check if levels are broken using CLOSE PRICES ONLY
             today_candles = candles[-288:]  # Today's data
-            current_high = max([c['high'] for c in today_candles])
-            current_low = min([c['low'] for c in today_candles])
+            today_closes = [c['close'] for c in today_candles]
+            current_high = max(today_closes)
+            current_low = min(today_closes)
             
             pdh_broken = current_high > pdh
             pdl_broken = current_low < pdl
@@ -93,22 +95,17 @@ class DataModule:
             print(f"❌ Error calculating levels for {instrument}: {str(e)}")
     
     async def get_real_time_data(self, instrument: str, count: int = 500) -> List[Dict]:
-        """Get real-time 5-minute candle data optimized for line chart analysis"""
+        """Get real-time 5-minute data for LINE CHART ONLY analysis"""
         try:
             candles = await self.oanda_client.get_candles(instrument, "M5", count)
             
-            # Return full OHLC data but optimized for line chart strategy
-            # The strategy focuses on closing prices but needs OHLC for swing detection
+            # Return ONLY closing prices for line chart analysis
             processed_data = []
             for candle in candles:
                 processed_data.append({
                     'time': candle['time'],
-                    'open': candle['open'],
-                    'high': candle['high'],
-                    'low': candle['low'],
-                    'close': candle['close'],  # Primary focus for line chart strategy
-                    'volume': candle['volume'],
-                    'line_price': candle['close']  # Explicit line chart price
+                    'close': candle['close'],  # ONLY closing price for line chart
+                    'volume': candle['volume']
                 })
             
             return processed_data
