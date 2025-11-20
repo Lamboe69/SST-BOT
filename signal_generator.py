@@ -28,9 +28,9 @@ class SignalGenerator:
         print(f"📈 [{instrument}] Generating signals in LINE CHART MODE (closing prices only)")
         
         try:
-            # Check if trading should be paused due to news
+            # MANDATORY NEWS FILTER - Always check for high-impact news
             if await self.news_filter.should_pause_trading():
-                print(f"⏸️ [{instrument}] Trading paused due to news")
+                print(f"⏸️ [{instrument}] Trading paused due to high-impact news (MANDATORY)")
                 return signals
             
             # Check total active trade limit (max 3 running at any time)
@@ -105,10 +105,10 @@ class SignalGenerator:
             # Calculate take profit (1:4 RR)
             take_profit = self._calculate_take_profit(entry_price, stop_loss, direction)
             
-            # Add validation timestamp
+            # Add validation timestamp and enforce 1:4 RR
             signal['validated_at'] = datetime.now()
             signal['take_profit'] = take_profit
-            signal['risk_reward_ratio'] = 4.0
+            signal['risk_reward_ratio'] = 4.0  # MANDATORY 1:4 Risk-Reward Ratio
             
             print(f"   Signal validated: Entry={entry_price:.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
             return signal
