@@ -133,12 +133,14 @@ class StructureDetector:
                     # Look for swing low break after touching swing high
                     for swing_low in recent_swing_lows:
                         if swing_low['index'] > swing_high['index'] and current_price < swing_low['price']:
+                            # Stop loss above the reference level (historical high or swing high)
+                            ref_level = max([level['high_price'] for level in historical_levels if not level['is_high_broken']] + [swing_high['price']])
                             micro_signal = {
                                 'instrument': instrument,
                                 'setup_type': 'MICRO_CHOCH',
                                 'direction': 'SELL',
                                 'entry_price': current_price,
-                                'stop_loss': swing_high['price'] * 1.001,
+                                'stop_loss': ref_level * 1.002,  # SL above highest reference point
                                 'reference_level': swing_high['price'],
                                 'swing_break_level': swing_low['price'],
                                 'timestamp': datetime.now()
@@ -152,12 +154,14 @@ class StructureDetector:
                     # Look for swing high break after touching swing low
                     for swing_high in recent_swing_highs:
                         if swing_high['index'] > swing_low['index'] and current_price > swing_high['price']:
+                            # Stop loss below the reference level (historical low or swing low)
+                            ref_level = min([level['low_price'] for level in historical_levels if not level['is_low_broken']] + [swing_low['price']])
                             micro_signal = {
                                 'instrument': instrument,
                                 'setup_type': 'MICRO_CHOCH',
                                 'direction': 'BUY',
                                 'entry_price': current_price,
-                                'stop_loss': swing_low['price'] * 0.999,
+                                'stop_loss': ref_level * 0.998,  # SL below lowest reference point
                                 'reference_level': swing_low['price'],
                                 'swing_break_level': swing_high['price'],
                                 'timestamp': datetime.now()
@@ -352,11 +356,8 @@ class StructureDetector:
         
         # Wait for CANDLE CLOSE below swing low (CHOCH confirmation)
         if current_price < latest_swing_low['price']:
-            # Find the rejection high (highest close before the drop)
-            rejection_high = max(recent_closes[:15])
-            
-            # Calculate stop loss (above rejection high with small buffer)
-            stop_loss = rejection_high + (rejection_high * 0.002)  # 0.2% buffer
+            # Stop loss above the reference level (PDH or historical high)
+            stop_loss = pdh * 1.002  # 0.2% above reference level
             
             print(f"   🎯 CHOCH SELL: Entry={current_price:.4f}, SL={stop_loss:.4f}, Swing={latest_swing_low['price']:.4f}")
             
@@ -400,11 +401,8 @@ class StructureDetector:
         
         # Wait for CANDLE CLOSE above swing high (CHOCH confirmation)
         if current_price > latest_swing_high['price']:
-            # Find the rejection low (lowest close before the rally)
-            rejection_low = min(recent_closes[:15])
-            
-            # Calculate stop loss (below rejection low with small buffer)
-            stop_loss = rejection_low - (rejection_low * 0.002)  # 0.2% buffer
+            # Stop loss below the reference level (PDL or historical low)
+            stop_loss = pdl * 0.998  # 0.2% below reference level
             
             print(f"   🎯 CHOCH BUY: Entry={current_price:.4f}, SL={stop_loss:.4f}, Swing={latest_swing_high['price']:.4f}")
             
@@ -453,8 +451,8 @@ class StructureDetector:
         
         # Wait for CANDLE CLOSE above swing high (BOS confirmation)
         if current_price > latest_swing_high['price']:
-            # Stop loss below the broken PDH
-            stop_loss = pdh - (pdh * 0.002)  # 0.2% below
+            # Stop loss below the broken reference level
+            stop_loss = pdh * 0.998  # 0.2% below reference level
             
             distance_ratio = self._calculate_distance_ratio(instrument, pdh, bos_level)
             
@@ -506,8 +504,8 @@ class StructureDetector:
         
         # Wait for CANDLE CLOSE below swing low (BOS confirmation)
         if current_price < latest_swing_low['price']:
-            # Stop loss above the broken PDL
-            stop_loss = pdl + (pdl * 0.002)  # 0.2% above
+            # Stop loss above the broken reference level
+            stop_loss = pdl * 1.002  # 0.2% above reference level
             
             distance_ratio = self._calculate_distance_ratio(instrument, pdl, bos_level)
             
