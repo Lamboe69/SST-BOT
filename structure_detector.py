@@ -121,36 +121,50 @@ class StructureDetector:
                     print(f"   ✅ BOS SELL after {level_date} low break: {level_low:.4f}")
                     signals.append(bos_signal)
         
-        # EMERGENCY SIGNAL GENERATION - If no signals found, create test signals
-        if not signals and len(close_prices) > 50:
-            print(f"   🆘 No signals found - generating test signal for {instrument}")
-            current_price = close_prices[-1]
+        # MICRO SWING ANALYSIS - Check recent small swings for immediate opportunities
+        if len(swing_highs) > 0 and len(swing_lows) > 0:
+            # Get most recent micro swings (last 20 candles)
+            recent_swing_highs = [sh for sh in swing_highs if sh['index'] >= len(close_prices) - 20]
+            recent_swing_lows = [sl for sl in swing_lows if sl['index'] >= len(close_prices) - 20]
             
-            # Create a simple test signal based on recent price action
-            if current_price > close_prices[-10]:  # Price trending up
-                test_signal = {
-                    'instrument': instrument,
-                    'setup_type': 'TEST_BUY',
-                    'direction': 'BUY',
-                    'entry_price': current_price,
-                    'stop_loss': current_price * 0.995,  # 0.5% SL
-                    'reference_level': pdl if pdl else current_price * 0.99,
-                    'timestamp': datetime.now()
-                }
-                signals.append(test_signal)
-                print(f"   🧪 TEST BUY signal created for {instrument}")
-            elif current_price < close_prices[-10]:  # Price trending down
-                test_signal = {
-                    'instrument': instrument,
-                    'setup_type': 'TEST_SELL',
-                    'direction': 'SELL',
-                    'entry_price': current_price,
-                    'stop_loss': current_price * 1.005,  # 0.5% SL
-                    'reference_level': pdh if pdh else current_price * 1.01,
-                    'timestamp': datetime.now()
-                }
-                signals.append(test_signal)
-                print(f"   🧪 TEST SELL signal created for {instrument}")
+            # Check for micro CHOCH/BOS patterns
+            for swing_high in recent_swing_highs[-3:]:  # Last 3 swing highs
+                if current_price < swing_high['price'] * 0.999:  # Small tolerance
+                    # Look for swing low break after touching swing high
+                    for swing_low in recent_swing_lows:
+                        if swing_low['index'] > swing_high['index'] and current_price < swing_low['price']:
+                            micro_signal = {
+                                'instrument': instrument,
+                                'setup_type': 'MICRO_CHOCH',
+                                'direction': 'SELL',
+                                'entry_price': current_price,
+                                'stop_loss': swing_high['price'] * 1.001,
+                                'reference_level': swing_high['price'],
+                                'swing_break_level': swing_low['price'],
+                                'timestamp': datetime.now()
+                            }
+                            signals.append(micro_signal)
+                            print(f"   ✅ MICRO CHOCH SELL at swing high {swing_high['price']:.4f}")
+                            break
+            
+            for swing_low in recent_swing_lows[-3:]:  # Last 3 swing lows
+                if current_price > swing_low['price'] * 1.001:  # Small tolerance
+                    # Look for swing high break after touching swing low
+                    for swing_high in recent_swing_highs:
+                        if swing_high['index'] > swing_low['index'] and current_price > swing_high['price']:
+                            micro_signal = {
+                                'instrument': instrument,
+                                'setup_type': 'MICRO_CHOCH',
+                                'direction': 'BUY',
+                                'entry_price': current_price,
+                                'stop_loss': swing_low['price'] * 0.999,
+                                'reference_level': swing_low['price'],
+                                'swing_break_level': swing_high['price'],
+                                'timestamp': datetime.now()
+                            }
+                            signals.append(micro_signal)
+                            print(f"   ✅ MICRO CHOCH BUY at swing low {swing_low['price']:.4f}")
+                            break
         
         # Filter out duplicate signals (within 10 candles) - DISABLED FOR TESTING
         # signals = self._filter_duplicate_signals(instrument, signals)
@@ -264,15 +278,15 @@ class StructureDetector:
             'updated_at': datetime.now()
         }
 
-    def _detect_swings_line_graph(self, close_prices: List[float], candles: List[Dict], lookback: int = 3) -> tuple:
+    def _detect_swings_line_graph(self, close_prices: List[float], candles: List[Dict], lookback: int = 1) -> tuple:
         """
-        Detect swing highs and swing lows ON LINE GRAPH
-        ✅ REDUCED LOOKBACK from 5 to 3 for more sensitivity
+        Detect ALL swing highs and swing lows ON LINE GRAPH - NO MATTER HOW SMALL
+        ✅ LOOKBACK = 1 for maximum sensitivity (every local peak/valley)
         
         Args:
             close_prices: List of close prices (line graph)
             candles: Original candle data (for timestamps)
-            lookback: Number of candles to look back (reduced to 3)
+            lookback: Number of candles to look back (1 for all swings)
         
         Returns:
             Tuple of (swing_highs, swing_lows)
@@ -281,7 +295,7 @@ class StructureDetector:
         swing_lows = []
         
         for i in range(lookback, len(close_prices) - lookback):
-            # Check for swing high on line graph
+            # Check for swing high - ANY local peak
             is_swing_high = True
             for j in range(1, lookback + 1):
                 if close_prices[i] <= close_prices[i - j] or close_prices[i] <= close_prices[i + j]:
@@ -295,7 +309,7 @@ class StructureDetector:
                     'time': candles[i]['time'] if i < len(candles) else None
                 })
             
-            # Check for swing low on line graph
+            # Check for swing low - ANY local valley
             is_swing_low = True
             for j in range(1, lookback + 1):
                 if close_prices[i] >= close_prices[i - j] or close_prices[i] >= close_prices[i + j]:
