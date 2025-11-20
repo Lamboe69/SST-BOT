@@ -490,8 +490,8 @@ async def run_trading_bot():
             
             # Trade monitoring is handled by trade_manager
             
-            # Sleep for 1 minute (faster scanning)
-            await asyncio.sleep(60)
+            # Sleep for 5 minutes (one candle period)
+            await asyncio.sleep(300)
         
         except Exception as e:
             print(f"❌ Error in trading loop: {str(e)}")

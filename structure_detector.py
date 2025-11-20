@@ -65,7 +65,7 @@ class StructureDetector:
         if not levels or 'high' not in levels or 'low' not in levels:
             print(f"⚠️ No levels found for {instrument} - creating emergency levels")
             # Create emergency levels from recent data
-            recent_closes = close_prices[-480:] if len(close_prices) >= 480 else close_prices
+            recent_closes = close_prices[-288:] if len(close_prices) >= 288 else close_prices
             if recent_closes:
                 emergency_high = max(recent_closes)
                 emergency_low = min(recent_closes)
@@ -255,11 +255,11 @@ class StructureDetector:
         Update or create previous day high/low levels
         ✅ USES LINE GRAPH (close prices only for highs/lows)
         """
-        if len(close_prices) < 480:
+        if len(close_prices) < 288:
             return
         
-        # Get yesterday's close prices (480 candles = 24 hours on 3min)
-        yesterday_closes = close_prices[-960:-480] if len(close_prices) >= 960 else close_prices[-480:]
+        # Get yesterday's close prices (288 candles = 24 hours on 5min)
+        yesterday_closes = close_prices[-576:-288] if len(close_prices) >= 576 else close_prices[-288:]
         
         if not yesterday_closes:
             return

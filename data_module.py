@@ -46,15 +46,15 @@ class DataModule:
     async def _calculate_previous_day_levels(self, instrument: str):
         """Calculate previous day high and low for an instrument"""
         try:
-            # Get 2 days of 3-minute data to ensure we have previous day
-            candles = await self.oanda_client.get_candles(instrument, "M3", 960)  # 2 days
+            # Get 2 days of 5-minute data to ensure we have previous day
+            candles = await self.oanda_client.get_candles(instrument, "M5", 576)  # 2 days
             
-            if len(candles) < 480:  # Need at least 1 day
+            if len(candles) < 288:  # Need at least 1 day
                 print(f"⚠️ Insufficient data for {instrument}")
                 return
             
-            # Get yesterday's candles (480 candles = 24 hours of 3-min data)
-            yesterday_candles = candles[-960:-480] if len(candles) >= 960 else candles[:-480]
+            # Get yesterday's candles (288 candles = 24 hours of 5-min data)
+            yesterday_candles = candles[-576:-288] if len(candles) >= 576 else candles[:-288]
             
             if not yesterday_candles:
                 print(f"⚠️ No yesterday data for {instrument}")
@@ -65,7 +65,7 @@ class DataModule:
             pdl = min([c['low'] for c in yesterday_candles])
             
             # Check if levels are already broken today
-            today_candles = candles[-480:]  # Today's data
+            today_candles = candles[-288:]  # Today's data
             current_high = max([c['high'] for c in today_candles])
             current_low = min([c['low'] for c in today_candles])
             
@@ -93,9 +93,9 @@ class DataModule:
             print(f"❌ Error calculating levels for {instrument}: {str(e)}")
     
     async def get_real_time_data(self, instrument: str, count: int = 500) -> List[Dict]:
-        """Get real-time 3-minute candle data optimized for line chart analysis"""
+        """Get real-time 5-minute candle data optimized for line chart analysis"""
         try:
-            candles = await self.oanda_client.get_candles(instrument, "M3", count)
+            candles = await self.oanda_client.get_candles(instrument, "M5", count)
             
             # Return full OHLC data but optimized for line chart strategy
             # The strategy focuses on closing prices but needs OHLC for swing detection
@@ -168,9 +168,9 @@ class DataModule:
             prev_time = datetime.fromisoformat(candles[i-1]['time'].replace('Z', '+00:00'))
             curr_time = datetime.fromisoformat(candles[i]['time'].replace('Z', '+00:00'))
             
-            # Should be 3 minutes apart
+            # Should be 5 minutes apart
             time_diff = (curr_time - prev_time).total_seconds()
-            if time_diff > 300:  # More than 5 minutes gap
+            if time_diff > 600:  # More than 10 minutes gap
                 print(f"⚠️ Data gap detected: {time_diff}s between candles")
                 return False
         
