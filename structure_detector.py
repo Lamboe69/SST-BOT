@@ -60,14 +60,10 @@ class StructureDetector:
         # Update previous day levels
         self._update_previous_day_levels(instrument, close_prices, candles)
         
-        # Get ALL historical levels (3 months of unbroken levels)
-        historical_levels = await self.data_module.get_historical_levels(instrument, 90)
+        # Skip historical levels analysis for now - will be handled by signal generator
+        historical_levels = []
         
-        if not historical_levels:
-            print(f"⚠️ No historical levels found for {instrument}")
-            return signals
-        
-        print(f"📅 {instrument}: Found {len(historical_levels)} historical levels to analyze")
+        print(f"📅 {instrument}: Analyzing current swing patterns")
         
         current_price = close_prices[-1]
         print(f"\n📊 {instrument} Analysis:")
@@ -80,45 +76,40 @@ class StructureDetector:
         
         print(f"   Swing Highs: {len(swing_highs)}, Swing Lows: {len(swing_lows)}")
         
-        # HISTORICAL LEVELS ANALYSIS - Check all unbroken levels from past 3 months
-        
-        for level in historical_levels:
-            level_high = level['high_price']
-            level_low = level['low_price']
-            level_date = level['date']
-            high_broken = level['is_high_broken']
-            low_broken = level['is_low_broken']
+        # Use previous day levels from internal storage
+        levels = self.previous_day_levels.get(instrument, {})
+        if levels and 'high' in levels and 'low' in levels:
+            pdh = levels['high']
+            pdl = levels['low']
+            pdh_broken = levels.get('high_broken', False)
+            pdl_broken = levels.get('low_broken', False)
             
-            # Check for CHOCH setups at unbroken highs
-            if not high_broken:
-                choch_signal = self._detect_choch_at_high(close_prices, level_high, swing_lows, instrument, candles)
+            # Check for CHOCH setups at PDH (not broken)
+            if pdh and not pdh_broken:
+                choch_signal = self._detect_choch_at_high(close_prices, pdh, swing_lows, instrument, candles)
                 if choch_signal:
-                    choch_signal['level_date'] = level_date
-                    print(f"   ✅ CHOCH SELL at {level_date} high: {level_high:.4f}")
+                    print(f"   ✅ CHOCH SELL signal detected at PDH!")
                     signals.append(choch_signal)
             
-            # Check for CHOCH setups at unbroken lows
-            if not low_broken:
-                choch_signal = self._detect_choch_at_low(close_prices, level_low, swing_highs, instrument, candles)
+            # Check for CHOCH setups at PDL (not broken)
+            if pdl and not pdl_broken:
+                choch_signal = self._detect_choch_at_low(close_prices, pdl, swing_highs, instrument, candles)
                 if choch_signal:
-                    choch_signal['level_date'] = level_date
-                    print(f"   ✅ CHOCH BUY at {level_date} low: {level_low:.4f}")
+                    print(f"   ✅ CHOCH BUY signal detected at PDL!")
                     signals.append(choch_signal)
             
-            # Check for BOS setups when historical high is broken
-            if high_broken and current_price > level_high:
-                bos_signal = self._detect_bos_after_high_break(close_prices, level_high, swing_highs, instrument, candles)
+            # Check for BOS setups when PDH is broken
+            if pdh and pdh_broken:
+                bos_signal = self._detect_bos_after_high_break(close_prices, pdh, swing_highs, instrument, candles)
                 if bos_signal:
-                    bos_signal['level_date'] = level_date
-                    print(f"   ✅ BOS BUY after {level_date} high break: {level_high:.4f}")
+                    print(f"   ✅ BOS BUY signal detected after PDH break!")
                     signals.append(bos_signal)
             
-            # Check for BOS setups when historical low is broken
-            if low_broken and current_price < level_low:
-                bos_signal = self._detect_bos_after_low_break(close_prices, level_low, swing_lows, instrument, candles)
+            # Check for BOS setups when PDL is broken
+            if pdl and pdl_broken:
+                bos_signal = self._detect_bos_after_low_break(close_prices, pdl, swing_lows, instrument, candles)
                 if bos_signal:
-                    bos_signal['level_date'] = level_date
-                    print(f"   ✅ BOS SELL after {level_date} low break: {level_low:.4f}")
+                    print(f"   ✅ BOS SELL signal detected after PDL break!")
                     signals.append(bos_signal)
         
         # MICRO SWING ANALYSIS - Check recent small swings for immediate opportunities
@@ -133,8 +124,8 @@ class StructureDetector:
                     # Look for swing low break after touching swing high
                     for swing_low in recent_swing_lows:
                         if swing_low['index'] > swing_high['index'] and current_price < swing_low['price']:
-                            # Stop loss above the reference level (historical high or swing high)
-                            ref_level = max([level['high_price'] for level in historical_levels if not level['is_high_broken']] + [swing_high['price']])
+                            # Stop loss above the swing high
+                            ref_level = swing_high['price']
                             micro_signal = {
                                 'instrument': instrument,
                                 'setup_type': 'MICRO_CHOCH',
@@ -154,8 +145,8 @@ class StructureDetector:
                     # Look for swing high break after touching swing low
                     for swing_high in recent_swing_highs:
                         if swing_high['index'] > swing_low['index'] and current_price > swing_high['price']:
-                            # Stop loss below the reference level (historical low or swing low)
-                            ref_level = min([level['low_price'] for level in historical_levels if not level['is_low_broken']] + [swing_low['price']])
+                            # Stop loss below the swing low
+                            ref_level = swing_low['price']
                             micro_signal = {
                                 'instrument': instrument,
                                 'setup_type': 'MICRO_CHOCH',
