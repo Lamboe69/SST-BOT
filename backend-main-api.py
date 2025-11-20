@@ -490,7 +490,7 @@ async def run_trading_bot():
             
             # Trade monitoring is handled by trade_manager
             
-            # Sleep for 5 minutes (one candle period)
+            # Sleep for 5 minutes - wait for candle close before next analysis
             await asyncio.sleep(300)
         
         except Exception as e:

@@ -353,7 +353,7 @@ class StructureDetector:
         
         latest_swing_low = recent_swing_lows[-1]
         
-        # Check if current price broke below the swing low (CHOCH confirmation)
+        # Wait for CANDLE CLOSE below swing low (CHOCH confirmation)
         if current_price < latest_swing_low['price']:
             # Find the rejection high (highest close before the drop)
             rejection_high = max(recent_closes[:15])
@@ -401,7 +401,7 @@ class StructureDetector:
         
         latest_swing_high = recent_swing_highs[-1]
         
-        # Check if current price broke above the swing high (CHOCH confirmation)
+        # Wait for CANDLE CLOSE above swing high (CHOCH confirmation)
         if current_price > latest_swing_high['price']:
             # Find the rejection low (lowest close before the rally)
             rejection_low = min(recent_closes[:15])
@@ -454,7 +454,7 @@ class StructureDetector:
         if self._is_bos_too_far(instrument, pdh, bos_level, direction='UP'):
             return None
         
-        # Check if price broke above the swing high (BOS confirmation)
+        # Wait for CANDLE CLOSE above swing high (BOS confirmation)
         if current_price > latest_swing_high['price']:
             # Stop loss below the broken PDH
             stop_loss = pdh - (pdh * 0.002)  # 0.2% below
@@ -507,7 +507,7 @@ class StructureDetector:
         if self._is_bos_too_far(instrument, pdl, bos_level, direction='DOWN'):
             return None
         
-        # Check if price broke below the swing low (BOS confirmation)
+        # Wait for CANDLE CLOSE below swing low (BOS confirmation)
         if current_price < latest_swing_low['price']:
             # Stop loss above the broken PDL
             stop_loss = pdl + (pdl * 0.002)  # 0.2% above
