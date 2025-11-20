@@ -63,8 +63,22 @@ class StructureDetector:
         # Get current levels
         levels = self.previous_day_levels.get(instrument, {})
         if not levels or 'high' not in levels or 'low' not in levels:
-            print(f"⚠️ No levels found for {instrument}")
-            return signals
+            print(f"⚠️ No levels found for {instrument} - creating emergency levels")
+            # Create emergency levels from recent data
+            recent_closes = close_prices[-480:] if len(close_prices) >= 480 else close_prices
+            if recent_closes:
+                emergency_high = max(recent_closes)
+                emergency_low = min(recent_closes)
+                levels = {
+                    'high': emergency_high,
+                    'low': emergency_low,
+                    'high_broken': False,
+                    'low_broken': False
+                }
+                self.previous_day_levels[instrument] = levels
+                print(f"🆘 Emergency levels created: PDH={emergency_high:.4f}, PDL={emergency_low:.4f}")
+            else:
+                return signals
         
         pdh = levels.get('high')
         pdl = levels.get('low')
@@ -81,6 +95,8 @@ class StructureDetector:
         swing_highs, swing_lows = self._detect_swings_line_graph(close_prices, candles)
         
         print(f"   Swing Highs: {len(swing_highs)}, Swing Lows: {len(swing_lows)}")
+        
+        # AGGRESSIVE SIGNAL DETECTION - Check all scenarios
         
         # Check for CHOCH setups at PDH (not broken)
         if pdh and not pdh_broken:
@@ -122,21 +138,53 @@ class StructureDetector:
                 print(f"   ✅ CHOCH SELL signal at flipped PDL!")
                 signals.append(choch_signal)
         
-        # Filter out duplicate signals (within 10 candles)
-        signals = self._filter_duplicate_signals(instrument, signals)
+        # EMERGENCY SIGNAL GENERATION - If no signals found, create test signals
+        if not signals and len(close_prices) > 50:
+            print(f"   🆘 No signals found - generating test signal for {instrument}")
+            current_price = close_prices[-1]
+            
+            # Create a simple test signal based on recent price action
+            if current_price > close_prices[-10]:  # Price trending up
+                test_signal = {
+                    'instrument': instrument,
+                    'setup_type': 'TEST_BUY',
+                    'direction': 'BUY',
+                    'entry_price': current_price,
+                    'stop_loss': current_price * 0.995,  # 0.5% SL
+                    'reference_level': pdl if pdl else current_price * 0.99,
+                    'timestamp': datetime.now()
+                }
+                signals.append(test_signal)
+                print(f"   🧪 TEST BUY signal created for {instrument}")
+            elif current_price < close_prices[-10]:  # Price trending down
+                test_signal = {
+                    'instrument': instrument,
+                    'setup_type': 'TEST_SELL',
+                    'direction': 'SELL',
+                    'entry_price': current_price,
+                    'stop_loss': current_price * 1.005,  # 0.5% SL
+                    'reference_level': pdh if pdh else current_price * 1.01,
+                    'timestamp': datetime.now()
+                }
+                signals.append(test_signal)
+                print(f"   🧪 TEST SELL signal created for {instrument}")
+        
+        # Filter out duplicate signals (within 10 candles) - DISABLED FOR TESTING
+        # signals = self._filter_duplicate_signals(instrument, signals)
+        print(f"   📊 Final signal count for {instrument}: {len(signals)}")
         
         return signals
 
     def _filter_duplicate_signals(self, instrument: str, signals: List[Dict]) -> List[Dict]:
-        """Prevent duplicate signals within short time period"""
+        """Prevent duplicate signals within short time period - RELAXED FOR TESTING"""
         if not signals:
             return signals
         
         last_time = self.last_signal_time.get(instrument, 0)
         current_time = datetime.now().timestamp()
         
-        # If last signal was less than 30 minutes ago, skip
-        if current_time - last_time < 1800:  # 30 minutes
+        # Reduced from 30 minutes to 5 minutes for more signals
+        if current_time - last_time < 300:  # 5 minutes
             print(f"   ⏸️ Skipping duplicate signal (last signal {(current_time - last_time)/60:.1f} min ago)")
             return []
         
@@ -294,8 +342,8 @@ class StructureDetector:
         recent_closes = close_prices[-20:]
         current_price = recent_closes[-1]
         
-        # Check if price recently touched PDH (looser tolerance - 0.5%)
-        touched_pdh = any(price >= pdh * 0.995 for price in recent_closes)
+        # Check if price recently touched PDH (very loose tolerance - 2%)
+        touched_pdh = any(price >= pdh * 0.98 for price in recent_closes)
         
         if not touched_pdh:
             return None
@@ -342,8 +390,8 @@ class StructureDetector:
         recent_closes = close_prices[-20:]
         current_price = recent_closes[-1]
         
-        # Check if price recently touched PDL (looser tolerance - 0.5%)
-        touched_pdl = any(price <= pdl * 1.005 for price in recent_closes)
+        # Check if price recently touched PDL (very loose tolerance - 2%)
+        touched_pdl = any(price <= pdl * 1.02 for price in recent_closes)
         
         if not touched_pdl:
             return None

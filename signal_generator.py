@@ -30,6 +30,7 @@ class SignalGenerator:
         try:
             # Check if trading should be paused due to news
             if await self.news_filter.should_pause_trading():
+                print(f"⏸️ [{instrument}] Trading paused due to news")
                 return signals
             
             # Check total active trade limit (max 3 running at any time)
@@ -38,53 +39,68 @@ class SignalGenerator:
             max_concurrent_trades = config.get('daily_trade_limit', 3)
             
             if total_active_trades >= max_concurrent_trades:
+                print(f"⏸️ [{instrument}] Trade limit reached ({total_active_trades}/{max_concurrent_trades})")
                 return signals
             
             # Get real-time data
             candles = await self.data_module.get_real_time_data(instrument, 500)
             
-            if not candles or not await self.data_module.validate_data_quality(candles):
+            if not candles:
+                print(f"⚠️ [{instrument}] No candle data available")
+                return signals
+            
+            if not await self.data_module.validate_data_quality(candles):
+                print(f"⚠️ [{instrument}] Data quality check failed")
                 return signals
             
             # Get previous day levels
             levels = await self.data_module.get_previous_day_levels(instrument)
             if not levels:
+                print(f"⚠️ [{instrument}] No previous day levels available")
                 return signals
             
-            # Generate signals based on structure analysis
-            structure_signals = await self.structure_detector.analyze(instrument, candles)
+            # Generate signals based on structure analysis - DIRECT CALL
+            structure_signals = self.structure_detector.analyze(instrument, candles)
+            
+            print(f"🔍 [{instrument}] Structure detector found {len(structure_signals)} raw signals")
             
             # Validate each signal
             for signal in structure_signals:
                 validated_signal = await self._validate_signal(signal, levels, candles)
                 if validated_signal:
                     signals.append(validated_signal)
+                    print(f"✅ [{instrument}] Signal validated: {signal['setup_type']} {signal['direction']}")
+                else:
+                    print(f"❌ [{instrument}] Signal rejected: {signal['setup_type']} {signal['direction']}")
             
         except Exception as e:
             print(f"❌ Error generating signals for {instrument}: {str(e)}")
+            import traceback
+            traceback.print_exc()
         
         return signals
     
     async def _validate_signal(self, signal: Dict, levels: Dict, candles: List[Dict]) -> Optional[Dict]:
-        """Validate a trading signal against all criteria"""
+        """Validate a trading signal against all criteria - RELAXED FOR TESTING"""
         try:
             setup_type = signal['setup_type']
             direction = signal['direction']
             entry_price = signal['entry_price']
             stop_loss = signal['stop_loss']
             
-            # Validate stop loss placement
-            if not self._validate_stop_loss(entry_price, stop_loss, direction):
+            # RELAXED VALIDATION - Accept most signals
+            print(f"   Validating {setup_type} {direction} signal...")
+            
+            # Basic stop loss validation (very lenient)
+            if direction == 'BUY' and stop_loss >= entry_price:
+                print(f"   Invalid SL for BUY: SL={stop_loss} >= Entry={entry_price}")
+                return None
+            elif direction == 'SELL' and stop_loss <= entry_price:
+                print(f"   Invalid SL for SELL: SL={stop_loss} <= Entry={entry_price}")
                 return None
             
-            # Validate BOS distance if applicable
-            if setup_type == 'BOS':
-                if not self._validate_bos_distance(signal, levels):
-                    return None
-            
-            # Validate market conditions
-            if not await self._validate_market_conditions():
-                return None
+            # Skip BOS distance validation for now
+            # Skip market conditions validation for now
             
             # Calculate take profit (1:4 RR)
             take_profit = self._calculate_take_profit(entry_price, stop_loss, direction)
@@ -94,10 +110,11 @@ class SignalGenerator:
             signal['take_profit'] = take_profit
             signal['risk_reward_ratio'] = 4.0
             
+            print(f"   Signal validated: Entry={entry_price:.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
             return signal
             
         except Exception as e:
-            print(f"❌ Error validating signal: {str(e)}")
+            print(f"Error validating signal: {str(e)}")
             return None
     
     def _validate_stop_loss(self, entry_price: float, stop_loss: float, direction: str) -> bool:

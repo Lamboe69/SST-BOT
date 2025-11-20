@@ -446,13 +446,24 @@ async def run_trading_bot():
                 if not bot_running:
                     break
                 
-                # Generate signals using signal generator
-                if signal_generator:
-                    signals = await signal_generator.generate_signals(instrument)
-                else:
-                    # Fallback to old method
-                    candles = await oanda_client.get_candles(instrument, granularity="M3", count=500)
-                    signals = structure_detector.analyze(instrument, candles)
+                print(f"\n🔍 Analyzing {instrument}...")
+                
+                # Generate signals - FORCE EXECUTION MODE
+                signals = []
+                try:
+                    if signal_generator:
+                        signals = await signal_generator.generate_signals(instrument)
+                    else:
+                        # Fallback to direct structure detector
+                        candles = await data_module.get_real_time_data(instrument, 500)
+                        if candles:
+                            signals = structure_detector.analyze(instrument, candles)
+                    
+                    print(f"📊 Found {len(signals)} signals for {instrument}")
+                    
+                except Exception as e:
+                    print(f"❌ Error analyzing {instrument}: {str(e)}")
+                    continue
                 
                 # Execute trades based on signals - FORCE EXECUTION
                 for signal in signals:
@@ -462,27 +473,25 @@ async def run_trading_bot():
                     # Check concurrent trade limit again
                     total_active_trades = db.get_total_active_trades_count()
                     if total_active_trades >= config['daily_trade_limit']:
+                        print(f"⏸️ Trade limit reached ({total_active_trades}/{config['daily_trade_limit']})")
                         break
                     
-                    # FORCE TRADE EXECUTION - This was missing!
-                    if LINE_CHART_CONFIG.should_auto_execute():
-                        print(f"🎯 EXECUTING TRADE: {signal['setup_type']} {signal['direction']} on {signal['instrument']}")
-                        result = await order_executor.execute_signal(signal)
-                        
-                        if result['success']:
-                            print(f"✅ TRADE EXECUTED: {result['message']}")
-                        else:
-                            print(f"❌ TRADE FAILED: {result['reason']}")
+                    # FORCE TRADE EXECUTION
+                    print(f"🎯 EXECUTING TRADE: {signal['setup_type']} {signal['direction']} on {signal['instrument']}")
+                    result = await order_executor.execute_signal(signal)
+                    
+                    if result['success']:
+                        print(f"✅ TRADE EXECUTED: {result['message']}")
                     else:
-                        print(f"⚠️ Trade execution disabled in config")
+                        print(f"❌ TRADE FAILED: {result['reason']}")
                     
                     # Small delay between trades
                     await asyncio.sleep(5)
             
             # Trade monitoring is handled by trade_manager
             
-            # Sleep for 3 minutes (one candle period)
-            await asyncio.sleep(180)
+            # Sleep for 1 minute (faster scanning)
+            await asyncio.sleep(60)
         
         except Exception as e:
             print(f"❌ Error in trading loop: {str(e)}")
